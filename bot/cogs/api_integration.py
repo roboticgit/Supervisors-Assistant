@@ -1,15 +1,15 @@
-class ApiIntegrationCog:
+import discord
+from discord.ext import commands
+from discord import app_commands
+
+class APIIntegration(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    async def fetch_data(self, url):
-        async with self.bot.session.get(url) as response:
-            if response.status == 200:
-                return await response.json()
-            else:
-                return None
+    @app_commands.command(name="fetch", description="Fetch data from an API")
+    async def fetch(self, interaction: discord.Interaction, endpoint: str):
+        # Example API call logic
+        await interaction.response.send_message(f"Fetching data from {endpoint}...")
 
-    def process_response(self, data):
-        # Process the data received from the API
-        # This is a placeholder for actual processing logic
-        return data
+async def setup(bot):
+    await bot.add_cog(APIIntegration(bot))
