@@ -1,20 +1,53 @@
-class RemindersCog:
+from discord.ext import commands
+import asyncio
+from datetime import datetime, timedelta
+
+class RemindersCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.reminders = {}
 
-    async def set_reminder(self, user_id, time, message):
-        # Logic to set a reminder
-        pass
+    @commands.command(name='set_reminder')
+    async def set_reminder(self, ctx, time: str, *, message: str):
+        """Sets a reminder for the user."""
+        user_id = ctx.author.id
+        reminder_time = self.parse_time(time)
 
-    async def check_reminders(self):
-        # Logic to check and send reminders
-        pass
+        if reminder_time:
+            self.reminders[user_id] = (reminder_time, message)
+            await ctx.send(f'Reminder set for {time}: {message}')
+            await self.wait_for_reminder(user_id, reminder_time, message)
+        else:
+            await ctx.send('Invalid time format. Please use a format like "10m" for 10 minutes.')
 
-    async def list_reminders(self, user_id):
-        # Logic to list reminders for a user
-        pass
+    @commands.command(name='list_reminders')
+    async def list_reminders(self, ctx):
+        """Lists all reminders for the user."""
+        user_id = ctx.author.id
+        if user_id in self.reminders:
+            reminder_time, message = self.reminders[user_id]
+            await ctx.send(f'Reminder: {message} at {reminder_time}')
+        else:
+            await ctx.send('You have no reminders set.')
 
-    async def delete_reminder(self, user_id, reminder_id):
-        # Logic to delete a specific reminder
-        pass
+    async def wait_for_reminder(self, user_id, reminder_time, message):
+        await asyncio.sleep((reminder_time - datetime.now()).total_seconds())
+        if user_id in self.reminders:
+            await self.bot.get_user(user_id).send(f'Reminder: {message}')
+            del self.reminders[user_id]
+
+    def parse_time(self, time_str):
+        """Parses a time string into a datetime object."""
+        try:
+            if time_str.endswith('m'):
+                minutes = int(time_str[:-1])
+                return datetime.now() + timedelta(minutes=minutes)
+            elif time_str.endswith('h'):
+                hours = int(time_str[:-1])
+                return datetime.now() + timedelta(hours=hours)
+            elif time_str.endswith('d'):
+                days = int(time_str[:-1])
+                return datetime.now() + timedelta(days=days)
+        except ValueError:
+            return None
+        return None
