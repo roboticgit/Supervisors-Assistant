@@ -71,7 +71,12 @@ class Reminders(commands.Cog):
         connection.commit()
         connection.close()
 
-        await interaction.response.send_message("Reminder set successfully!", ephemeral=True)
+        embed = discord.Embed(title="Reminder Set", description="Your reminder has been set successfully!", color=discord.Color.green())
+        await interaction.response.send_message(embed=embed)
+
+    # Handle errors or missing information
+    async def handle_error(interaction: discord.Interaction, error_message: str):
+        await interaction.response.send_message(error_message, ephemeral=True)
 
 async def setup(bot):
     await bot.add_cog(Reminders(bot))

@@ -38,7 +38,8 @@ async def on_ready():
 
 @tree.command(name="ping", description="Check if the bot is responsive.")
 async def ping(interaction: discord.Interaction):
-    await interaction.response.send_message("Pong!", ephemeral=True)
+    embed = discord.Embed(title=":ping_pong:", description="The bot is responsive.", color=discord.Color.dark_grey())
+    await interaction.response.send_message(embed=embed)
 
 # Run the bot
 bot.run(TOKEN)

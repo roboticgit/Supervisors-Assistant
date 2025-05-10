@@ -5,6 +5,8 @@ import requests
 import os
 from dotenv import load_dotenv
 from utils.helpers import get_db_connection, convert_to_unix
+import asyncio
+from discord.ui import Modal, Button, View
 
 load_dotenv()
 
@@ -21,7 +23,7 @@ class Clickup(commands.Cog):
             "Content-Type": "application/json"
         }
 
-    @app_commands.command(name="search_tasks", description="Search tasks in ClickUp by assignee or description text.")
+    @app_commands.command(name="check", description="Search tasks in ClickUp by assignee or description text.")
     async def search_tasks(self, interaction: discord.Interaction, query: str):
         url = f"https://api.clickup.com/api/v2/team/{self.workspace_id}/task"
         headers = self.get_clickup_headers()
@@ -38,7 +40,7 @@ class Clickup(commands.Cog):
         else:
             await interaction.response.send_message("Failed to search tasks. Please try again later.", ephemeral=True)
 
-    @app_commands.command(name="create_task", description="Create a new task in ClickUp.")
+    @app_commands.command(name="create", description="Create a training task in ClickUp.")
     async def create_task(self, interaction: discord.Interaction, department: str, time: str, date: str):
         # Fetch user timezone and ClickUp email from the database
         connection = get_db_connection()
@@ -116,10 +118,11 @@ class Clickup(commands.Cog):
                 )
                 connection.commit()
                 connection.close()
-                await interaction.response.send_message(embed=discord.Embed(title="Success", description="Your preferences have been saved!", color=discord.Color.green()))
+                embed = discord.Embed(title="Success", description="Your preferences have been saved!", color=discord.Color.green())
+                await interaction.response.send_message(embed=embed)
 
             async def on_cancel(interaction):
-                await interaction.response.send_message(embed=discord.Embed(title="Cancelled", description="Setup process was cancelled.", color=discord.Color.red()))
+                await interaction.response.send_message("Setup process was cancelled.", ephemeral=True)
 
             view.children[0].callback = on_confirm
             view.children[1].callback = on_cancel
@@ -127,12 +130,6 @@ class Clickup(commands.Cog):
             await interaction.response.send_message(embed=embed, view=view)
 
         await interaction.response.send_modal(SetupModal("Email", "Enter your email", get_email))
-
-async def setup(bot):
-    await bot.add_cog(Clickup(bot))
-
-import asyncio
-from discord.ui import Modal, Button, View
 
 class SetupModal(Modal):
     def __init__(self, title, placeholder, callback):
@@ -153,3 +150,6 @@ class SetupView(View):
     async def interaction_check(self, interaction: discord.Interaction):
         await self.callback(interaction, interaction.data['custom_id'])
         return True
+
+async def setup(bot):
+    await bot.add_cog(Clickup(bot))
