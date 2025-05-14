@@ -1,5 +1,0 @@
-API_KEYS = {
-    "example_api": "YOUR_API_KEY_HERE"
-}
-
-TIMEZONE = "YOUR_TIMEZONE_HERE"

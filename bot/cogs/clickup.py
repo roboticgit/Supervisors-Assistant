@@ -10,12 +10,90 @@ from discord.ui import Modal, Button, View
 
 load_dotenv()
 
+class TimezoneMenuView(View):
+    def __init__(self, cog):
+        super().__init__(timeout=300)
+        self.cog = cog
+        timezones = ["UTC", "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles",
+"America/Toronto", "America/Vancouver", "America/Sao_Paulo", "Europe/London", "Europe/Paris", "Europe/Berlin",
+"Europe/Moscow",  "Europe/Madrid", "Europe/Rome", "Asia/Tokyo", "Asia/Shanghai", "Asia/Kolkata", "Asia/Singapore", 
+"Asia/Dubai", "Asia/Seoul", "Asia/Hong_Kong", "Australia/Sydney", "Africa/Johannesburg", "Africa/Cairo","Pacific/Auckland"
+]
+        self.add_item(discord.ui.Select(
+            placeholder="Select your timezone",
+            options=[discord.SelectOption(label=tz, value=tz) for tz in timezones],
+            custom_id="timezone_select"
+        ))
+
+    async def interaction_check(self, interaction: discord.Interaction):
+        selected_timezone = interaction.data['values'][0]
+        await self.cog.confirm_change(interaction, selected_timezone, "timezone")
+        return True
+
+class DepartmentMenuView(View):
+    def __init__(self, field, cog):
+        super().__init__(timeout=300)
+        self.field = field
+        self.cog = cog
+        departments = [
+            {"label": "Driving Department", "emoji": "<:QD:1323990343095681095>"},
+            {"label": "Dispatching Department", "emoji": "<:DS:1323990336950767616>"},
+            {"label": "Guarding Department", "emoji": "<:GD:1323990339031269496>"},
+            {"label": "Signalling Department", "emoji": "<:SG:1323990431809142835>"},
+            {"label": "None", "emoji": "❌"} 
+        ]
+        self.add_item(discord.ui.Select(
+            placeholder="Select your department",
+            options=[discord.SelectOption(label=dept["label"], value=dept["label"], emoji=dept["emoji"]) for dept in departments],
+            custom_id="department_select"
+        ))
+
+    async def interaction_check(self, interaction: discord.Interaction):
+        selected_department = interaction.data['values'][0]
+        await self.cog.confirm_change(interaction, selected_department, self.field)
+        return True
+
+class ReminderPreferencesMenuView(View):
+    preferences = [
+        "No reminders",
+        "Quota reminders",
+        "Training reminders",
+        "Quota and Training reminders"
+    ]
+
+    def __init__(self, cog):
+        super().__init__(timeout=300)
+        self.cog = cog
+        self.add_item(discord.ui.Select(
+            placeholder="Select your reminder preference",
+            options=[discord.SelectOption(label=name, value=name) for name in self.preferences],
+            custom_id="reminder_preferences_select"
+        ))
+
+    async def interaction_check(self, interaction: discord.Interaction):
+        selected_preference = interaction.data['values'][0]
+        await self.cog.confirm_change(interaction, selected_preference, "reminder_preferences")
+        return True
+
+class SetupModal(Modal):
+    def __init__(self, title, placeholder, callback):
+        super().__init__(title=title)
+        self.callback = callback
+        self.add_item(discord.ui.TextInput(label=placeholder))
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await self.callback(interaction, self.children[0].value)
+
 class Clickup(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.clickup_api_token = os.getenv('CLICKUP_API_TOKEN')
-        self.workspace_id = os.getenv('CLICKUP_WORKSPACE_ID')
-        self.list_id = os.getenv('CLICKUP_LIST_ID')
+        self.clickup_space_ids = {
+            "Driving Department": os.getenv('CLICKUP_SPACE_ID_DRIVING_DEPARTMENT'),
+            "Dispatching Department": os.getenv('CLICKUP_SPACE_ID_DISPATCHING_DEPARTMENT'),
+            "Guarding Department": os.getenv('CLICKUP_SPACE_ID_GUARDING_DEPARTMENT'),
+            "Signalling Department": os.getenv('CLICKUP_SPACE_ID_SIGNALLING_DEPARTMENT')
+        }
 
     def get_clickup_headers(self):
         return {
@@ -23,29 +101,11 @@ class Clickup(commands.Cog):
             "Content-Type": "application/json"
         }
 
-    @app_commands.command(name="check", description="Search tasks in ClickUp by assignee or description text.")
-    async def search_tasks(self, interaction: discord.Interaction, query: str):
-        url = f"https://api.clickup.com/api/v2/team/{self.workspace_id}/task"
-        headers = self.get_clickup_headers()
-        params = {"search": query}
-
-        response = requests.get(url, headers=headers, params=params)
-        if response.status_code == 200:
-            tasks = response.json().get("tasks", [])
-            if tasks:
-                task_list = "\n".join([f"- {task['name']} (ID: {task['id']})" for task in tasks])
-                await interaction.response.send_message(f"Found tasks:\n{task_list}", ephemeral=True)
-            else:
-                await interaction.response.send_message("No tasks found.", ephemeral=True)
-        else:
-            await interaction.response.send_message("Failed to search tasks. Please try again later.", ephemeral=True)
-
-    @app_commands.command(name="create", description="Create a training task in ClickUp.")
-    async def create_task(self, interaction: discord.Interaction, department: str, time: str, date: str):
-        # Fetch user timezone and ClickUp email from the database
+    @app_commands.command(name="check", description="Check if you've reached quota.")
+    async def check(self, interaction: discord.Interaction):
         connection = get_db_connection()
         cursor = connection.cursor(dictionary=True)
-        cursor.execute("SELECT timezone, clickup_email FROM users WHERE discord_id = %s", (interaction.user.id,))
+        cursor.execute("SELECT primary_department, secondary_department, roblox_username, clickup_email FROM users WHERE discord_id = %s", (interaction.user.id,))
         user_data = cursor.fetchone()
         connection.close()
 
@@ -53,103 +113,143 @@ class Clickup(commands.Cog):
             await interaction.response.send_message("User data not found. Please setup the bot first.", ephemeral=True)
             return
 
+        roblox_username = user_data['roblox_username']
+        clickup_email = user_data['clickup_email']
+        departments = [user_data['primary_department']]
+        if user_data['secondary_department']:
+            departments.append(user_data['secondary_department'])
+
+        embeds = []
+        for department in departments:
+            list_id = os.getenv(f"CLICKUP_LIST_ID_{department.upper().replace(' ', '_')}")
+            if not list_id:
+                await interaction.response.send_message(f"No space ID found for {department}. Please check your configuration.", ephemeral=True)
+                continue
+
+            url = f"https://api.clickup.com/api/v2/list/{list_id}/task"
+            headers = self.get_clickup_headers()
+            params = {"status": "CONCLUDED"}
+
+            page = 0
+            total_tasks = 0
+            username_tasks = 0
+
+            while True:
+                response = requests.get(url, headers=headers, params={**params, "page": page})
+                if response.status_code != 200:
+                    break
+
+                tasks = response.json().get("tasks", [])
+                if not tasks:
+                    break
+
+                for task in tasks:
+                    assignees = [assignee['email'] for assignee in task.get('assignees', [])]
+                    if clickup_email in assignees:
+                        total_tasks += 1
+                        if roblox_username in task['name']:
+                            username_tasks += 1
+
+                page += 1
+
+            department_colors = {
+                "Driving Department": 0xE43D2E,  # Red
+                "Dispatching Department": 0xF98E2C,  # Orange
+                "Guarding Department": 0xF2B322,  # Yellow
+                "Signalling Department": 0x00B18B  # Green
+            }
+            embed_color = department_colors.get(department, 0x000000)  # Default to black if not found
+
+            embed = discord.Embed(
+                title=f"{department} Department Summary",
+                description=f"Summary of tasks for the {department} department.",
+                color=embed_color
+            )
+
+            if total_tasks > 0:
+                embed.add_field(name="Total Tasks", value=str(total_tasks), inline=False)
+                embed.add_field(name="Tasks with Username", value=str(username_tasks), inline=False)
+            else:
+                embed.description = "No trainings completed this month."
+
+            embeds.append(embed)
+
+        for embed in embeds:
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @app_commands.command(name="create", description="Create a training task in ClickUp.")
+    async def create(self, interaction: discord.Interaction, date: str = None, time: str = None, department: str = None, priority: int = 3, status: str = "to do", tags: str = None):
+        connection = get_db_connection()
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute("SELECT primary_department, clickup_email FROM users WHERE discord_id = %s", (interaction.user.id,))
+        user_data = cursor.fetchone()
+        connection.close()
+
+        if not user_data:
+            await interaction.response.send_message("User data not found. Please setup the bot first.", ephemeral=True)
+            return
+
+        if not department:
+            department = user_data['primary_department']
+
+        list_id = os.getenv(f"CLICKUP_LIST_ID_{department.upper().replace(' ', '_')}")
+        if not list_id:
+            await interaction.response.send_message("Invalid department selected.", ephemeral=True)
+            return
+
         user_timezone = user_data['timezone']
         clickup_email = user_data['clickup_email']
 
-        # Convert time and date to UNIX timestamp in EST timezone
-        due_date_unix = convert_to_unix(date, time, user_timezone)
+        due_date_unix = convert_to_unix(date, time, user_timezone) if time and date else None
 
-        # Format task name and description
-        task_name = f"Task for {department} on {date} at {time}"  # Example format, replace with your own
-        task_description = f"This task is assigned to {clickup_email}."  # Example format, replace with your own
+        task_name = f"Task for {department} on {date} at {time}" if time and date else f"Task for {department}"
+        task_description = f"This task is assigned to {clickup_email}."
 
-        # Prepare API request
-        url = f"https://api.clickup.com/api/v2/list/{self.list_id}/task"
+        url = f"https://api.clickup.com/api/v2/list/{list_id}/task"
         headers = self.get_clickup_headers()
         payload = {
             "name": task_name,
             "description": task_description,
             "due_date": due_date_unix,
             "assignees": [clickup_email],
-            "tags": [os.getenv('CLICKUP_TAG_ID')]
+            "priority": priority,
+            "status": status,
+            "tags": tags.split(",") if tags else []
         }
 
         response = requests.post(url, headers=headers, json=payload)
         if response.status_code == 200:
-            await interaction.response.send_message("Task created successfully!", ephemeral=True)
+            task = response.json()
+            await interaction.response.send_message(f"Task created successfully!\nName: {task['name']}\nID: {task['id']}\nStatus: {task['status']['status']}")
         else:
             await interaction.response.send_message("Failed to create task. Please try again later.", ephemeral=True)
 
-    @app_commands.command(name="setup", description="Set up your user preferences interactively.")
-    async def setup_user(self, interaction: discord.Interaction):
-        user_data = {}
+    async def confirm_change(self, interaction, value, field):
+        embed = discord.Embed(title="Confirm Change", description=f"Are you sure you want to change {field.replace('_', ' ').title()} to {value}?")
+        view = self.ConfirmChangeView(value, field, self)
+        await interaction.response.edit_message(embed=embed, view=view)
 
-        async def get_email(interaction, value):
-            user_data['email'] = value
-            await interaction.response.send_modal(SetupModal("ROBLOX Username", "Enter your ROBLOX username", get_roblox_username))
+    class ConfirmChangeView(View):
+        def __init__(self, value, field, cog):
+            super().__init__(timeout=300)
+            self.value = value
+            self.field = field
+            self.cog = cog
 
-        async def get_roblox_username(interaction, value):
-            user_data['roblox_username'] = value
-            await interaction.response.send_modal(SetupModal("Timezone", "Enter your timezone (e.g., EST, PST)", get_timezone))
+            self.add_item(Button(label="Confirm", style=discord.ButtonStyle.success, custom_id="confirm"))
+            self.add_item(Button(label="Cancel", style=discord.ButtonStyle.danger, custom_id="cancel"))
 
-        async def get_timezone(interaction, value):
-            user_data['timezone'] = value
-            embed = discord.Embed(title="Reminder Preferences", description="Choose your reminder style:")
-            embed.add_field(name="Options", value="1: Style A\n2: Style B\n3: Style C\n4: Style D")
-            await interaction.response.send_message(embed=embed, view=SetupView(["1", "2", "3", "4"], get_reminder_preferences))
-
-        async def get_reminder_preferences(interaction, value):
-            user_data['reminder_preferences'] = int(value)
-            embed = discord.Embed(title="Confirm Your Data", description="Please confirm your setup details:")
-            embed.add_field(name="Email", value=user_data['email'], inline=False)
-            embed.add_field(name="ROBLOX Username", value=user_data['roblox_username'], inline=False)
-            embed.add_field(name="Timezone", value=user_data['timezone'], inline=False)
-            embed.add_field(name="Reminder Preferences", value=user_data['reminder_preferences'], inline=False)
-            view = View()
-            view.add_item(Button(label="Confirm", style=discord.ButtonStyle.success, custom_id="confirm"))
-            view.add_item(Button(label="Cancel", style=discord.ButtonStyle.danger, custom_id="cancel"))
-
-            async def on_confirm(interaction):
+        async def interaction_check(self, interaction: discord.Interaction):
+            if interaction.data['custom_id'] == "confirm":
                 connection = get_db_connection()
                 cursor = connection.cursor()
-                cursor.execute(
-                    "REPLACE INTO users (discord_id, clickup_email, roblox_username, timezone, reminder_preferences) VALUES (%s, %s, %s, %s, %s)",
-                    (interaction.user.id, user_data['email'], user_data['roblox_username'], user_data['timezone'], user_data['reminder_preferences'])
-                )
+                cursor.execute(f"UPDATE users SET {self.field} = %s WHERE discord_id = %s", (self.value, interaction.user.id))
                 connection.commit()
                 connection.close()
-                embed = discord.Embed(title="Success", description="Your preferences have been saved!", color=discord.Color.green())
-                await interaction.response.send_message(embed=embed)
-
-            async def on_cancel(interaction):
-                await interaction.response.send_message("Setup process was cancelled.", ephemeral=True)
-
-            view.children[0].callback = on_confirm
-            view.children[1].callback = on_cancel
-
-            await interaction.response.send_message(embed=embed, view=view)
-
-        await interaction.response.send_modal(SetupModal("Email", "Enter your email", get_email))
-
-class SetupModal(Modal):
-    def __init__(self, title, placeholder, callback):
-        super().__init__(title=title)
-        self.callback = callback
-        self.add_item(discord.ui.InputText(label=placeholder))
-
-    async def on_submit(self, interaction: discord.Interaction):
-        await self.callback(interaction, self.children[0].value)
-
-class SetupView(View):
-    def __init__(self, options, callback):
-        super().__init__(timeout=300)  # 5 minutes timeout
-        self.callback = callback
-        for option in options:
-            self.add_item(Button(label=option, style=discord.ButtonStyle.primary, custom_id=option))
-
-    async def interaction_check(self, interaction: discord.Interaction):
-        await self.callback(interaction, interaction.data['custom_id'])
-        return True
+                await interaction.response.send_message("Change confirmed and saved.")
+            elif interaction.data['custom_id'] == "cancel":
+                await interaction.response.send_message("Change canceled.")
+            return True
 
 async def setup(bot):
     await bot.add_cog(Clickup(bot))

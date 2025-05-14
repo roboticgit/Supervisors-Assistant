@@ -5,6 +5,7 @@ import mysql.connector
 from datetime import datetime, timedelta
 import pytz
 import os
+import requests
 
 class Reminders(commands.Cog):
     def __init__(self, bot):
@@ -25,39 +26,56 @@ class Reminders(commands.Cog):
     @tasks.loop(minutes=10)
     async def check_tasks(self):
         now = datetime.now(pytz.timezone('EST'))
-        connection = self.get_db_connection()
-        cursor = connection.cursor(dictionary=True)
+        headers = {
+            "Authorization": os.getenv('CLICKUP_API_TOKEN'),
+            "Content-Type": "application/json"
+        }
 
-        # Query tasks with due dates within the next 24 hours
-        cursor.execute("SELECT * FROM tasks WHERE due_date BETWEEN %s AND %s", (
-            now, now + timedelta(days=1)
-        ))
-        tasks = cursor.fetchall()
+        # Iterate through departments and fetch tasks
+        departments = [
+            "Driving Department",
+            "Dispatching Department",
+            "Guarding Department",
+            "Signalling Department"
+        ]
 
-        for task in tasks:
-            user_id = task['discord_id']
-            roblox_username = task['roblox_username']
-            due_date = task['due_date']
-
-            # Send reminders based on intervals
-            time_left = (due_date - now).total_seconds()
-            if time_left <= 10 * 60 and roblox_username not in task['title']:
-                interval = "10 minutes"
-            elif time_left <= 30 * 60 and roblox_username in task['title']:
-                interval = "30 minutes"
-            elif time_left <= 1 * 60 * 60:
-                interval = "1 hour"
-            elif time_left <= 6 * 60 * 60:
-                interval = "6 hours"
-            elif time_left <= 24 * 60 * 60:
-                interval = "24 hours"
-            else:
+        for department in departments:
+            list_id = os.getenv(f"CLICKUP_LIST_ID_{department.upper().replace(' ', '_')}")
+            if not list_id:
                 continue
 
-            user = await self.bot.fetch_user(user_id)
-            await user.send(f"Reminder: Task '{task['title']}' is due in {interval}.")
+            url = f"https://api.clickup.com/api/v2/list/{list_id}/task"
+            params = {
+                "due_date_gt": int(now.timestamp() * 1000),
+                "due_date_lt": int((now + timedelta(days=1)).timestamp() * 1000)
+            }
 
-        connection.close()
+            response = requests.get(url, headers=headers, params=params)
+            if response.status_code != 200:
+                continue
+
+            tasks = response.json().get("tasks", [])
+            for task in tasks:
+                assignees = [assignee['email'] for assignee in task.get('assignees', [])]
+                if os.getenv('CLICKUP_USER_EMAIL') in assignees:
+                    due_date = datetime.fromtimestamp(task['due_date'] / 1000, pytz.timezone('EST'))
+                    time_left = (due_date - now).total_seconds()
+
+                    if time_left <= 10 * 60:
+                        interval = "10 minutes"
+                    elif time_left <= 30 * 60:
+                        interval = "30 minutes"
+                    elif time_left <= 1 * 60 * 60:
+                        interval = "1 hour"
+                    elif time_left <= 6 * 60 * 60:
+                        interval = "6 hours"
+                    elif time_left <= 24 * 60 * 60:
+                        interval = "24 hours"
+                    else:
+                        continue
+
+                    user = await self.bot.fetch_user(task['creator']['id'])
+                    await user.send(f"Reminder: Task '{task['name']}' is due in {interval}.")
 
     @app_commands.command(name="set_reminder", description="Set a reminder for a task.")
     async def set_reminder(self, interaction: discord.Interaction, task_id: str):
