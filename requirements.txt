@@ -1,3 +1,6 @@
 discord.py
 python-dotenv
 apscheduler
+mysql-connector-python
+pytz
+requests

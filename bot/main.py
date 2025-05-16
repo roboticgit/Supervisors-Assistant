@@ -14,7 +14,7 @@ DB_PASSWORD = os.getenv('DB_PASSWORD')
 DB_NAME = os.getenv('DB_NAME')
 
 # Set up bot with intents and slash commands
-intents = Intents.default()
+intents = Intents.all()
 bot = commands.Bot(command_prefix='!', intents=intents)
 tree = bot.tree
 
@@ -31,6 +31,8 @@ def get_db_connection():
 @bot.event
 async def on_ready():
     print(f'Logged in as {bot.user}')
+    activity = discord.Activity(type=discord.ActivityType.watching, name=f"SCR trainings")
+    await bot.change_presence(status=discord.Status.online, activity=activity)
     for filename in os.listdir('./bot/cogs'):
         if filename.endswith('.py') and filename != '__init__.py':  # Skip __init__.py
             await bot.load_extension(f'cogs.{filename[:-3]}')
@@ -51,7 +53,7 @@ async def on_member_join(member):
 
 @tree.command(name="ping", description="Check if the bot is responsive.")
 async def ping(interaction: discord.Interaction):
-    embed = discord.Embed(title="The bot is responsive and healthy.", description=":ping_pong:", color=discord.Color.dark_grey())
+    embed = discord.Embed(title="The bot is alive and well, thanks for asking!", description=":ping_pong:", color=discord.Color.dark_grey())
     await interaction.response.send_message(embed=embed)
 
 # Run the bot

@@ -7,110 +7,48 @@ from dotenv import load_dotenv
 from utils.helpers import get_db_connection, convert_to_unix
 import asyncio
 from discord.ui import Modal, Button, View
+from datetime import datetime
+import pytz
 
 load_dotenv()
-
-class TimezoneMenuView(View):
-    def __init__(self, cog):
-        super().__init__(timeout=300)
-        self.cog = cog
-        timezones = ["UTC", "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles",
-"America/Toronto", "America/Vancouver", "America/Sao_Paulo", "Europe/London", "Europe/Paris", "Europe/Berlin",
-"Europe/Moscow",  "Europe/Madrid", "Europe/Rome", "Asia/Tokyo", "Asia/Shanghai", "Asia/Kolkata", "Asia/Singapore", 
-"Asia/Dubai", "Asia/Seoul", "Asia/Hong_Kong", "Australia/Sydney", "Africa/Johannesburg", "Africa/Cairo","Pacific/Auckland"
-]
-        self.add_item(discord.ui.Select(
-            placeholder="Select your timezone",
-            options=[discord.SelectOption(label=tz, value=tz) for tz in timezones],
-            custom_id="timezone_select"
-        ))
-
-    async def interaction_check(self, interaction: discord.Interaction):
-        selected_timezone = interaction.data['values'][0]
-        await self.cog.confirm_change(interaction, selected_timezone, "timezone")
-        return True
-
-class DepartmentMenuView(View):
-    def __init__(self, field, cog):
-        super().__init__(timeout=300)
-        self.field = field
-        self.cog = cog
-        departments = [
-            {"label": "Driving Department", "emoji": "<:QD:1323990343095681095>"},
-            {"label": "Dispatching Department", "emoji": "<:DS:1323990336950767616>"},
-            {"label": "Guarding Department", "emoji": "<:GD:1323990339031269496>"},
-            {"label": "Signalling Department", "emoji": "<:SG:1323990431809142835>"},
-            {"label": "None", "emoji": "❌"} 
-        ]
-        self.add_item(discord.ui.Select(
-            placeholder="Select your department",
-            options=[discord.SelectOption(label=dept["label"], value=dept["label"], emoji=dept["emoji"]) for dept in departments],
-            custom_id="department_select"
-        ))
-
-    async def interaction_check(self, interaction: discord.Interaction):
-        selected_department = interaction.data['values'][0]
-        await self.cog.confirm_change(interaction, selected_department, self.field)
-        return True
-
-class ReminderPreferencesMenuView(View):
-    preferences = [
-        "No reminders",
-        "Quota reminders",
-        "Training reminders",
-        "Quota and Training reminders"
-    ]
-
-    def __init__(self, cog):
-        super().__init__(timeout=300)
-        self.cog = cog
-        self.add_item(discord.ui.Select(
-            placeholder="Select your reminder preference",
-            options=[discord.SelectOption(label=name, value=name) for name in self.preferences],
-            custom_id="reminder_preferences_select"
-        ))
-
-    async def interaction_check(self, interaction: discord.Interaction):
-        selected_preference = interaction.data['values'][0]
-        await self.cog.confirm_change(interaction, selected_preference, "reminder_preferences")
-        return True
-
-class SetupModal(Modal):
-    def __init__(self, title, placeholder, callback):
-        super().__init__(title=title)
-        self.callback = callback
-        self.add_item(discord.ui.TextInput(label=placeholder))
-
-    async def on_submit(self, interaction: discord.Interaction):
-        await self.callback(interaction, self.children[0].value)
 
 class Clickup(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.clickup_api_token = os.getenv('CLICKUP_API_TOKEN')
-        self.clickup_space_ids = {
-            "Driving Department": os.getenv('CLICKUP_SPACE_ID_DRIVING_DEPARTMENT'),
-            "Dispatching Department": os.getenv('CLICKUP_SPACE_ID_DISPATCHING_DEPARTMENT'),
-            "Guarding Department": os.getenv('CLICKUP_SPACE_ID_GUARDING_DEPARTMENT'),
-            "Signalling Department": os.getenv('CLICKUP_SPACE_ID_SIGNALLING_DEPARTMENT')
+        self.clickup_list_ids = {
+            "Driving Department": os.getenv('CLICKUP_LIST_ID_DRIVING_DEPARTMENT'),
+            "Dispatching Department": os.getenv('CLICKUP_LIST_ID_DISPATCHING_DEPARTMENT'),
+            "Guarding Department": os.getenv('CLICKUP_LIST_ID_GUARDING_DEPARTMENT'),
+            "Signalling Department": os.getenv('CLICKUP_LIST_ID_SIGNALLING_DEPARTMENT')
         }
 
     def get_clickup_headers(self):
         return {
             "Authorization": self.clickup_api_token,
-            "Content-Type": "application/json"
+            "accept": "application/json"
         }
 
     @app_commands.command(name="check", description="Check if you've reached quota.")
     async def check(self, interaction: discord.Interaction):
+        await interaction.response.send_message("Working on your request...")
         connection = get_db_connection()
         cursor = connection.cursor(dictionary=True)
-        cursor.execute("SELECT primary_department, secondary_department, roblox_username, clickup_email FROM users WHERE discord_id = %s", (interaction.user.id,))
+        cursor.execute("SELECT primary_department, secondary_department, roblox_username, clickup_email, timezone FROM users WHERE discord_id = %s", (interaction.user.id,))
         user_data = cursor.fetchone()
         connection.close()
 
-        if not user_data:
-            await interaction.response.send_message("User data not found. Please setup the bot first.", ephemeral=True)
+        if (not user_data or
+            any(
+                user_data.get(field) == 'Not set'
+                for field in [
+                    'primary_department',
+                    'secondary_department',
+                    'roblox_username',
+                    'clickup_email'
+                ]
+            )):
+            await interaction.edit_original_response(content="User data is missing or incomplete! Please run `/settings` and fill out all of the fields")
             return
 
         roblox_username = user_data['roblox_username']
@@ -119,65 +57,166 @@ class Clickup(commands.Cog):
         if user_data['secondary_department']:
             departments.append(user_data['secondary_department'])
 
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        first_of_month = datetime(year=now.year, month=now.month, day=1, tzinfo=timezone.utc)
+        first_of_month_unix_ms = int(first_of_month.timestamp() * 1000)
+
         embeds = []
         for department in departments:
-            list_id = os.getenv(f"CLICKUP_LIST_ID_{department.upper().replace(' ', '_')}")
-            if not list_id:
-                await interaction.response.send_message(f"No space ID found for {department}. Please check your configuration.", ephemeral=True)
+            if department == "None":
                 continue
-
-            url = f"https://api.clickup.com/api/v2/list/{list_id}/task"
+            list_id = self.clickup_list_ids.get(department)
+            if not list_id:
+                await interaction.followup.send(f"Could not find {department}'s Clickup list. Please check your settings and ensure your primary department is valid.", ephemeral=True)
+                continue
             headers = self.get_clickup_headers()
-            params = {"status": "CONCLUDED"}
 
-            page = 0
+            # --- Completed Trainings ---
             total_tasks = 0
             username_tasks = 0
+            for archived_value in ["false", "true"]:
+                page = 0
+                while True:
+                    url_with_params = (
+                        f"https://api.clickup.com/api/v2/list/{list_id}/task?"
+                        f"archived={archived_value}&"
+                        f"statuses=concluded&"
+                        f"statuses=concluded&"
+                        f"include_closed=true&"
+                        f"due_date_gt={first_of_month_unix_ms}&"
+                        f"page={page}"
+                    )
+                    response = requests.get(url_with_params, headers=headers)
+                    if response.status_code != 200:
+                        break
+                    data = response.json()
+                    tasks = data.get("tasks", [])
+                    if not tasks:
+                        break
+                    for task in tasks:
+                        assignees = [assignee['email'] for assignee in task.get('assignees', [])]
+                        if clickup_email in assignees:
+                            due_date = task.get('due_date')
+                            if due_date and int(due_date) >= first_of_month_unix_ms:
+                                total_tasks += 1
+                                if roblox_username in task['name']:
+                                    username_tasks += 1
+                    if data.get("last_page", False):
+                        break
+                    page += 1
 
+            # --- Scheduled Trainings ---
+            scheduled_trainings = []
+            archived_value = "false"
+            page = 0
             while True:
-                response = requests.get(url, headers=headers, params={**params, "page": page})
+                url_with_params = (
+                    f"https://api.clickup.com/api/v2/list/{list_id}/task?"
+                    f"archived={archived_value}&"
+                    f"statuses=pending%20staff&"
+                    f"statuses=scheduled&"
+                    f"include_closed=true&"
+                    f"due_date_gt={first_of_month_unix_ms}&"
+                    f"page={page}"
+                )
+                response = requests.get(url_with_params, headers=headers)
                 if response.status_code != 200:
                     break
-
-                tasks = response.json().get("tasks", [])
+                data = response.json()
+                tasks = data.get("tasks", [])
                 if not tasks:
                     break
-
                 for task in tasks:
                     assignees = [assignee['email'] for assignee in task.get('assignees', [])]
                     if clickup_email in assignees:
-                        total_tasks += 1
-                        if roblox_username in task['name']:
-                            username_tasks += 1
-
+                        # Only add if user is assigned
+                        scheduled_trainings.append({
+                            'name': task.get('name', 'No Name'),
+                            'due_date': task.get('due_date'),
+                            'url': task.get('url')
+                        })
+                if data.get("last_page", False):
+                    break
                 page += 1
 
             department_colors = {
                 "Driving Department": 0xE43D2E,  # Red
                 "Dispatching Department": 0xF98E2C,  # Orange
-                "Guarding Department": 0xF2B322,  # Yellow
+                "Guarding Department": 0xFFFF38,  # REALLY Yellow
                 "Signalling Department": 0x00B18B  # Green
             }
-            embed_color = department_colors.get(department, 0x000000)  # Default to black if not found
+            embed_color = department_colors.get(department, 0xFFFFFF)
 
             embed = discord.Embed(
-                title=f"{department} Department Summary",
-                description=f"Summary of tasks for the {department} department.",
+                title=f"{department} Monthly Trainings:",
                 color=embed_color
             )
 
-            if total_tasks > 0:
-                embed.add_field(name="Total Tasks", value=str(total_tasks), inline=False)
-                embed.add_field(name="Tasks with Username", value=str(username_tasks), inline=False)
+            percentage = round((username_tasks / total_tasks * 100), 2) if total_tasks > 0 else 0
+
+            # Always show the completed trainings fields, even if zero
+            embed.add_field(name="Total Completed Trainings", value=str(total_tasks), inline=False)
+            embed.add_field(name="How many Completed Trainings were Hosts", value=f"{username_tasks}/{total_tasks} ({percentage}%)", inline=False)
+
+            # Quota logic
+            quota = total_tasks >= 8 and username_tasks >= 2
+            # Awaiting logic: not enough concluded, but enough if scheduled are included
+            total_with_scheduled = total_tasks + len(scheduled_trainings)
+            # Count how many scheduled trainings are hosts (by username in name)
+            scheduled_hosts = 0
+            for t in scheduled_trainings:
+                if roblox_username in t['name']:
+                    scheduled_hosts += 1
+            hosts_with_scheduled = username_tasks + scheduled_hosts
+            awaiting_quota = not quota and total_with_scheduled >= 8 and hosts_with_scheduled >= 2
+
+            if quota:
+                embed.title = f"{department} Monthly Trainings: Passing"
+                embed.description = f"Training information will appear below. **PASSING** indicates you've completed sufficient trainings to pass this month's quota.\n\nNote: Trainings are only displayed if their due date is past the start of the current month, and you are marked as an assignee."
+                embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/1372371251867160636/1372707760357244948/image.png?ex=6827c139&is=68266fb9&hm=843a33293fca83a6eb4a5fce782cc7f7290e40fc0ef9b97c1af91b5a9ccfb53e&")
+            elif awaiting_quota:
+                embed.title = f"{department} Monthly Trainings: On-track"
+                embed.description = f"Training information will appear below. **ON-TRACK** indicates you have not *completed* sufficient trainings, but you are scheduled for enough, meaning if you attend all your scheduled trainings you'd pass.\n\nNote: Trainings are only displayed if their due date is past the start of the current month, and you are marked as an assignee."
+                embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/1372371251867160636/1372742120674431058/image.png?ex=6827e139&is=68268fb9&hm=b30a5936784cd7ca4756da63d21caf69ffc9133ac94db63c0b4ce75f7e39e1fe&") 
             else:
-                embed.description = "No trainings completed this month."
+                embed.title = f"{department} Monthly Trainings: Failing"
+                embed.description = f"Training information will appear below. **FAILING** indicates you have not completed and/or joined enough scheduled trainings to pass this month's quota.\n\nNote: Trainings are only displayed if their due date is past the start of the current month, and you are marked as an assignee."
+                embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/1372371251867160636/1372707760138883202/image.png?ex=6827c139&is=68266fb9&hm=84f5c4edb49e786e8d1db294185bfd8e99a78c348f974349400e0e72a563683c&")
+
+            # Always show the scheduled trainings field, even if none
+            user_tz = user_data.get('timezone', 'UTC')
+            try:
+                tz = pytz.timezone(user_tz)
+            except Exception:
+                tz = pytz.UTC
+            scheduled_list = []
+            for t in scheduled_trainings:
+                # Format date in user's timezone if possible
+                if t['due_date']:
+                    try:
+                        dt_utc = datetime.utcfromtimestamp(int(t['due_date'])/1000).replace(tzinfo=pytz.UTC)
+                        dt_local = dt_utc.astimezone(tz)
+                        date_str = dt_local.strftime('%A, %B %d, %Y at %I:%M %p')
+                    except Exception:
+                        date_str = t['due_date']
+                else:
+                    date_str = 'No date'
+                url = t['url']
+                if url:
+                    date_str = f"[{date_str}]({url})"
+                scheduled_list.append(f"- {date_str}")
+            if not scheduled_list:
+                scheduled_list = ["- None"]
+            embed.add_field(name=f"Upcoming Trainings you Joined", value="\n".join(scheduled_list), inline=False)
 
             embeds.append(embed)
 
+        await interaction.edit_original_response(content="Success, see department(s) trainings below")
         for embed in embeds:
-            await interaction.response.send_message(embed=embed, ephemeral=True)
+            await interaction.followup.send(embed=embed)
 
-    @app_commands.command(name="create", description="Create a training task in ClickUp.")
+    # @app_commands.command(name="create", description="Create a training task in ClickUp.")
     async def create(self, interaction: discord.Interaction, date: str = None, time: str = None, department: str = None, priority: int = 3, status: str = "to do", tags: str = None):
         connection = get_db_connection()
         cursor = connection.cursor(dictionary=True)
@@ -186,7 +225,7 @@ class Clickup(commands.Cog):
         connection.close()
 
         if not user_data:
-            await interaction.response.send_message("User data not found. Please setup the bot first.", ephemeral=True)
+            await interaction.response.send_message("User data not found. Please setup the bot first.")
             return
 
         if not department:
@@ -194,7 +233,7 @@ class Clickup(commands.Cog):
 
         list_id = os.getenv(f"CLICKUP_LIST_ID_{department.upper().replace(' ', '_')}")
         if not list_id:
-            await interaction.response.send_message("Invalid department selected.", ephemeral=True)
+            await interaction.response.send_message("Invalid department selected.")
             return
 
         user_timezone = user_data['timezone']
@@ -222,7 +261,7 @@ class Clickup(commands.Cog):
             task = response.json()
             await interaction.response.send_message(f"Task created successfully!\nName: {task['name']}\nID: {task['id']}\nStatus: {task['status']['status']}")
         else:
-            await interaction.response.send_message("Failed to create task. Please try again later.", ephemeral=True)
+            await interaction.response.send_message("Failed to create task. Please try again later.")
 
     async def confirm_change(self, interaction, value, field):
         embed = discord.Embed(title="Confirm Change", description=f"Are you sure you want to change {field.replace('_', ' ').title()} to {value}?")
@@ -246,9 +285,9 @@ class Clickup(commands.Cog):
                 cursor.execute(f"UPDATE users SET {self.field} = %s WHERE discord_id = %s", (self.value, interaction.user.id))
                 connection.commit()
                 connection.close()
-                await interaction.response.send_message("Change confirmed and saved.")
+                await interaction.response.send_message("Change confirmed and saved")
             elif interaction.data['custom_id'] == "cancel":
-                await interaction.response.send_message("Change canceled.")
+                await interaction.response.send_message("Change canceled")
             return True
 
 async def setup(bot):

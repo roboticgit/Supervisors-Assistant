@@ -3,7 +3,81 @@ from discord.ext import commands
 from discord import app_commands
 from discord.ui import Modal, Button, View
 from utils.helpers import get_db_connection
-from .clickup import TimezoneMenuView, DepartmentMenuView, ReminderPreferencesMenuView, SetupModal
+
+class TimezoneMenuView(View):
+    def __init__(self, cog):
+        super().__init__(timeout=300)
+        self.cog = cog
+        timezones = [
+            "UTC", "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles",
+            "America/Toronto", "America/Vancouver", "America/Sao_Paulo", "Europe/London", "Europe/Paris", "Europe/Berlin",
+            "Europe/Moscow",  "Europe/Madrid", "Europe/Rome", "Asia/Tokyo", "Asia/Shanghai", "Asia/Kolkata", "Asia/Singapore", 
+            "Asia/Dubai", "Asia/Seoul", "Asia/Hong_Kong", "Australia/Sydney", "Africa/Johannesburg", "Africa/Cairo","Pacific/Auckland"
+        ]
+        self.add_item(discord.ui.Select(
+            placeholder="Select your timezone",
+            options=[discord.SelectOption(label=tz, value=tz) for tz in timezones],
+            custom_id="timezone_select"
+        ))
+
+    async def interaction_check(self, interaction: discord.Interaction):
+        selected_timezone = interaction.data['values'][0]
+        await self.cog.confirm_change(interaction, selected_timezone, "timezone")
+        return True
+
+class DepartmentMenuView(View):
+    def __init__(self, field, cog):
+        super().__init__(timeout=300)
+        self.field = field
+        self.cog = cog
+        departments = [
+            {"label": "Driving Department", "emoji": "<:QD:1323990343095681095>"},
+            {"label": "Dispatching Department", "emoji": "<:DS:1323990336950767616>"},
+            {"label": "Guarding Department", "emoji": "<:GD:1323990339031269496>"},
+            {"label": "Signalling Department", "emoji": "<:SG:1323990431809142835>"},
+            {"label": "None", "emoji": "❌"}
+        ]
+        self.add_item(discord.ui.Select(
+            placeholder="Select your department",
+            options=[discord.SelectOption(label=dept["label"], value=dept["label"], emoji=dept["emoji"]) for dept in departments],
+            custom_id="department_select"
+        ))
+
+    async def interaction_check(self, interaction: discord.Interaction):
+        selected_department = interaction.data['values'][0]
+        await self.cog.confirm_change(interaction, selected_department, self.field)
+        return True
+
+class ReminderPreferencesMenuView(View):
+    preferences = [
+        "No reminders",
+        "Quota reminders",
+        "Training reminders",
+        "Quota and Training reminders"
+    ]
+
+    def __init__(self, cog):
+        super().__init__(timeout=300)
+        self.cog = cog
+        self.add_item(discord.ui.Select(
+            placeholder="Select your reminder preference",
+            options=[discord.SelectOption(label=name, value=name) for name in self.preferences],
+            custom_id="reminder_preferences_select"
+        ))
+
+    async def interaction_check(self, interaction: discord.Interaction):
+        selected_preference = interaction.data['values'][0]
+        await self.cog.confirm_change(interaction, selected_preference, "reminder_preferences")
+        return True
+
+class SetupModal(Modal):
+    def __init__(self, title, placeholder, callback):
+        super().__init__(title=title)
+        self.callback = callback
+        self.add_item(discord.ui.TextInput(label=placeholder))
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await self.callback(interaction, self.children[0].value)
 
 
 class SettingsMenuView(View):
@@ -11,43 +85,57 @@ class SettingsMenuView(View):
         super().__init__(timeout=300)
         self.user_data = user_data
         self.cog = cog
-
-        self.add_item(Button(label="Email", style=discord.ButtonStyle.primary, custom_id="email"))
-        self.add_item(Button(label="ROBLOX Username", style=discord.ButtonStyle.primary, custom_id="roblox_username"))
-        self.add_item(Button(label="Timezone", style=discord.ButtonStyle.primary, custom_id="timezone"))
-        self.add_item(Button(label="Primary Department", style=discord.ButtonStyle.primary, custom_id="primary_department"))
-        self.add_item(Button(label="Secondary Department", style=discord.ButtonStyle.primary, custom_id="secondary_department"))
-        self.add_item(Button(label="Reminder Preferences", style=discord.ButtonStyle.primary, custom_id="reminder_preferences"))
+        options = [
+            discord.SelectOption(label="Clickup Email", value="email"),
+            discord.SelectOption(label="ROBLOX Username", value="roblox_username"),
+            discord.SelectOption(label="Timezone", value="timezone"),
+            discord.SelectOption(label="Primary Department", value="primary_department"),
+            discord.SelectOption(label="Secondary Department", value="secondary_department"),
+            discord.SelectOption(label="Reminder Preferences", value="reminder_preferences"),
+        ]
+        self.add_item(discord.ui.Select(
+            placeholder="Select a setting to change...",
+            options=options,
+            custom_id="settings_menu_select"
+        ))
+        self.add_item(Button(label="Done", style=discord.ButtonStyle.success, custom_id="done_settings"))
 
     async def interaction_check(self, interaction: discord.Interaction):
-        if interaction.data['custom_id'] == "email":
-            await interaction.response.send_modal(SetupModal("Email", "Enter your email", lambda i, v: self.cog.confirm_change(i, v, "clickup_email")))
-        elif interaction.data['custom_id'] == "roblox_username":
-            await interaction.response.send_modal(SetupModal("ROBLOX Username", "Enter your ROBLOX username", lambda i, v: self.cog.confirm_change(i, v, "roblox_username")))
-        elif interaction.data['custom_id'] == "timezone":
-            embed = discord.Embed(
-                title="Timezone",
-                description="Select your timezone:",
-            )
-            await interaction.response.edit_message(embed=embed, view=TimezoneMenuView(self.cog))
-        elif interaction.data['custom_id'] == "primary_department":
-            embed = discord.Embed(
-                title="Primary Department",
-                description="Select your primary department:",
-            )
-            await interaction.response.edit_message(embed=embed, view=DepartmentMenuView("primary_department", self.cog))
-        elif interaction.data['custom_id'] == "secondary_department":
-            embed = discord.Embed(
-                title="Secondary Department",
-                description="Select your secondary department:",
-            )
-            await interaction.response.edit_message(embed=embed, view=DepartmentMenuView("secondary_department", self.cog))
-        elif interaction.data['custom_id'] == "reminder_preferences":
-            embed = discord.Embed(
-                title="Reminder Preferences",
-                description="Select your reminder preferences:",
-            )
-            await interaction.response.edit_message(embed=embed, view=ReminderPreferencesMenuView(self.cog))
+        if interaction.data.get('component_type') == 3:  # 3 = Select menu
+            selected = interaction.data['values'][0]
+            if selected == "email":
+                await interaction.response.send_modal(SetupModal("Email", "Enter your email", lambda i, v: self.cog.confirm_change(i, v, "clickup_email")))
+            elif selected == "roblox_username":
+                await interaction.response.send_modal(SetupModal("ROBLOX Username", "Enter your ROBLOX username", lambda i, v: self.cog.confirm_change(i, v, "roblox_username")))
+            elif selected == "timezone":
+                embed = discord.Embed(title="Timezone", description="Select your timezone:")
+                await interaction.response.edit_message(embed=embed, view=TimezoneMenuView(self.cog))
+            elif selected == "primary_department":
+                embed = discord.Embed(title="Primary Department", description="Select your primary department:")
+                await interaction.response.edit_message(embed=embed, view=DepartmentMenuView("primary_department", self.cog))
+            elif selected == "secondary_department":
+                embed = discord.Embed(title="Secondary Department", description="Select your secondary department:")
+                await interaction.response.edit_message(embed=embed, view=DepartmentMenuView("secondary_department", self.cog))
+            elif selected == "reminder_preferences":
+                embed = discord.Embed(title="Reminder Preferences", description="Select your reminder preferences:")
+                await interaction.response.edit_message(embed=embed, view=ReminderPreferencesMenuView(self.cog))
+        elif interaction.data.get('custom_id') == "done_settings":
+            # Fetch updated user data
+            connection = get_db_connection()
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("SELECT * FROM users WHERE discord_id = %s", (interaction.user.id,))
+            user_data = cursor.fetchone()
+            connection.close()
+
+            # Create a green embed with updated settings
+            embed = discord.Embed(title="Settings updated successfully!", description="Here are your current settings:", color=discord.Color.green())
+            embed.add_field(name="Clickup Email", value=user_data['clickup_email'], inline=True)
+            embed.add_field(name="ROBLOX Username", value=user_data['roblox_username'], inline=True)
+            embed.add_field(name="Timezone", value=user_data['timezone'], inline=False)
+            embed.add_field(name="Primary Department", value=user_data['primary_department'], inline=True)
+            embed.add_field(name="Secondary Department", value=user_data['secondary_department'], inline=True)
+            embed.add_field(name="Reminder Preferences", value=user_data['reminder_preferences'], inline=False)
+            await interaction.response.edit_message(embed=embed, view=None)
         return True
 
 class ConfirmChangeView(View):
@@ -77,8 +165,8 @@ class ConfirmChangeView(View):
             connection.close()
 
             # Update the main settings embed
-            embed = discord.Embed(title="Settings", description="Select a setting to change:")
-            embed.add_field(name="Email", value=user_data['clickup_email'], inline=True)
+            embed = discord.Embed(title="Settings", description="Select a setting to change:", color=discord.Color.blue())
+            embed.add_field(name="Clickup Email", value=user_data['clickup_email'], inline=True)
             embed.add_field(name="ROBLOX Username", value=user_data['roblox_username'], inline=True)
             embed.add_field(name="Timezone", value=user_data['timezone'], inline=False)
             embed.add_field(name="Primary Department", value=user_data['primary_department'], inline=True)
@@ -123,20 +211,20 @@ class User(commands.Cog):
         connection.close()
 
         async def main_settings_embed():
-            embed = discord.Embed(title="Settings", description="Select a setting to change:")
-            embed.add_field(name="Email", value=user_data['clickup_email'], inline=False)
+            embed = discord.Embed(title="Settings", description="Select a setting to change:", color=discord.Color.blue())
+            embed.add_field(name="Clickup Email", value=user_data['clickup_email'], inline=True)
             embed.add_field(name="ROBLOX Username", value=user_data['roblox_username'], inline=True)
-            embed.add_field(name="Timezone", value=user_data['timezone'], inline=True)
-            embed.add_field(name="Primary", value=user_data['primary_department'], inline=False)
-            embed.add_field(name="Secondary", value=user_data['secondary_department'], inline=True)
-            embed.add_field(name="Reminder Preferences", value={user_data['reminder_preferences']}, inline=False)
+            embed.add_field(name="Timezone", value=user_data['timezone'], inline=False)
+            embed.add_field(name="Primary Department", value=user_data['primary_department'], inline=True)
+            embed.add_field(name="Secondary Department", value=user_data['secondary_department'], inline=True)
+            embed.add_field(name="Reminder Preferences", value=user_data['reminder_preferences'], inline=False)
             view = SettingsMenuView(user_data, self)
             await interaction.response.send_message(embed=embed, view=view)
 
         await main_settings_embed()
 
     async def confirm_change(self, interaction, value, field):
-        embed = discord.Embed(title="Confirm Change", description=f"Are you sure you want to change {field.replace('_', ' ').title()} to {value}?")
+        embed = discord.Embed(title="Confirm Change", description=f"Are you sure you want to change {field.replace('_', ' ').title()} to {value}?", color=discord.Color.red())
         view = ConfirmChangeView(value, field, self)
         await interaction.response.edit_message(embed=embed, view=view)
 

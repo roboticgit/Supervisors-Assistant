@@ -77,7 +77,7 @@ class Reminders(commands.Cog):
                     user = await self.bot.fetch_user(task['creator']['id'])
                     await user.send(f"Reminder: Task '{task['name']}' is due in {interval}.")
 
-    @app_commands.command(name="set_reminder", description="Set a reminder for a task.")
+    # @app_commands.command(name="set_reminder", description="Set a reminder for a task.")
     async def set_reminder(self, interaction: discord.Interaction, task_id: str):
         connection = self.get_db_connection()
         cursor = connection.cursor()
@@ -94,7 +94,7 @@ class Reminders(commands.Cog):
 
     # Handle errors or missing information
     async def handle_error(interaction: discord.Interaction, error_message: str):
-        await interaction.response.send_message(error_message, ephemeral=True)
+        await interaction.response.send_message(error_message)
 
 async def setup(bot):
     await bot.add_cog(Reminders(bot))
