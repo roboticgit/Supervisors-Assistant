@@ -62,7 +62,6 @@ class Clickup(commands.Cog):
         first_of_month = datetime(year=now.year, month=now.month, day=1, tzinfo=timezone.utc)
         first_of_month_unix_ms = int(first_of_month.timestamp() * 1000)
 
-        embeds = []
         for department in departments:
             if department == "None":
                 continue
@@ -72,9 +71,17 @@ class Clickup(commands.Cog):
                 continue
             headers = self.get_clickup_headers()
 
-            # --- Completed Trainings ---
-            total_tasks = 0
-            username_tasks = 0
+            # --- Gather all tasks for this department ---
+            concluded_username = 0
+            concluded_total = 0
+            scheduled_username = 0
+            scheduled_total = 0
+            scheduled_trainings_username = []
+            scheduled_trainings_total = []
+            concluded_trainings_username = []
+            concluded_trainings_total = []
+
+            # Concluded (archived true/false)
             for archived_value in ["false", "true"]:
                 page = 0
                 while True:
@@ -99,15 +106,16 @@ class Clickup(commands.Cog):
                         if clickup_email in assignees:
                             due_date = task.get('due_date')
                             if due_date and int(due_date) >= first_of_month_unix_ms:
-                                total_tasks += 1
+                                concluded_total += 1
+                                concluded_trainings_total.append(task)
                                 if roblox_username in task['name']:
-                                    username_tasks += 1
+                                    concluded_username += 1
+                                    concluded_trainings_username.append(task)
                     if data.get("last_page", False):
                         break
                     page += 1
 
-            # --- Scheduled Trainings ---
-            scheduled_trainings = []
+            # Scheduled (archived false)
             archived_value = "false"
             page = 0
             while True:
@@ -130,15 +138,26 @@ class Clickup(commands.Cog):
                 for task in tasks:
                     assignees = [assignee['email'] for assignee in task.get('assignees', [])]
                     if clickup_email in assignees:
-                        # Only add if user is assigned
-                        scheduled_trainings.append({
-                            'name': task.get('name', 'No Name'),
-                            'due_date': task.get('due_date'),
-                            'url': task.get('url')
-                        })
+                        scheduled_total += 1
+                        scheduled_trainings_total.append(task)
+                        if roblox_username in task['name']:
+                            scheduled_username += 1
+                            scheduled_trainings_username.append(task)
                 if data.get("last_page", False):
                     break
                 page += 1
+
+            # --- Intro Embed (now only sent once, blue color) ---
+            intro_embed = discord.Embed(
+                title=f"Quota Status Explanation",
+                description=(
+                    "**PASSING:** You have completed enough trainings to meet the quota.\n"
+                    "**ON-TRACK:** You have not completed enough, but if you attend all your scheduled trainings, you will meet the quota.\n"
+                    "**FAILING:** You have not completed nor scheduled enough to meet the quota.\n\n"
+                    "> **Note:** Only trainings where you are an assignee and the due date is after the start of the month are counted. "
+                ),
+                color=discord.Color.blue()
+            )
 
             department_colors = {
                 "Driving Department": 0xE43D2E,  # Red
@@ -148,140 +167,242 @@ class Clickup(commands.Cog):
             }
             embed_color = department_colors.get(department, 0xFFFFFF)
 
-            embed = discord.Embed(
-                title=f"{department} Monthly Trainings:",
+            # --- Username-in-title Embed ---
+            username_embed = discord.Embed(
+                title=f"`Hosts:` {department}",
                 color=embed_color
             )
-
-            percentage = round((username_tasks / total_tasks * 100), 2) if total_tasks > 0 else 0
-            embed.add_field(name="Total Completed Trainings", value=str(total_tasks), inline=False)
-            embed.add_field(name="How many Completed Trainings were Hosts", value=f"{username_tasks}/{total_tasks} ({percentage}%)", inline=False)
-
-            quota = total_tasks >= 8 and username_tasks >= 2
-            total_with_scheduled = total_tasks + len(scheduled_trainings)
-            scheduled_hosts = 0
-            for t in scheduled_trainings:
-                if roblox_username in t['name']:
-                    scheduled_hosts += 1
-            hosts_with_scheduled = username_tasks + scheduled_hosts
-            awaiting_quota = not quota and total_with_scheduled >= 8 and hosts_with_scheduled >= 2
-
-            if quota:
-                embed.title = f"{department} Monthly Trainings: Passing"
-                embed.description = f"Training information will appear below. **PASSING** indicates you've completed sufficient trainings to pass this month's quota.\n\nNote: Trainings are only displayed if their due date is past the start of the current month, and you are marked as an assignee."
-                embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/1372371251867160636/1372707760357244948/image.png?ex=6827c139&is=68266fb9&hm=843a33293fca83a6eb4a5fce782cc7f7290e40fc0ef9b97c1af91b5a9ccfb53e&")
-            elif awaiting_quota:
-                embed.title = f"{department} Monthly Trainings: On-track"
-                embed.description = f"Training information will appear below. **ON-TRACK** indicates you have not *completed* sufficient trainings, but you are scheduled for enough, meaning if you attend all your scheduled trainings you'd pass.\n\nNote: Trainings are only displayed if their due date is past the start of the current month, and you are marked as an assignee."
-                embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/1372371251867160636/1372742120674431058/image.png?ex=6827e139&is=68268fb9&hm=b30a5936784cd7ca4756da63d21caf69ffc9133ac94db63c0b4ce75f7e39e1fe&") 
+            if concluded_total > 0:
+                completed_hosts_value = f"{concluded_username} Hosts/{concluded_total} Total ({concluded_username / concluded_total * 100:.2f}%)"
             else:
-                embed.title = f"{department} Monthly Trainings: Failing"
-                embed.description = f"Training information will appear below. **FAILING** indicates you have not completed and/or joined enough scheduled trainings to pass this month's quota.\n\nNote: Trainings are only displayed if their due date is past the start of the current month, and you are marked as an assignee."
-                embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/1372371251867160636/1372707760138883202/image.png?ex=6827c139&is=68266fb9&hm=84f5c4edb49e786e8d1db294185bfd8e99a78c348f974349400e0e72a563683c&")
-
-            user_tz = user_data.get('timezone', 'UTC')
-            try:
-                tz = pytz.timezone(user_tz)
-            except Exception:
-                tz = pytz.UTC
-            scheduled_list = []
-            for t in scheduled_trainings:
-                if t['due_date']:
-                    try:
-                        dt_utc = datetime.utcfromtimestamp(int(t['due_date'])/1000).replace(tzinfo=pytz.UTC)
+                completed_hosts_value = f"{concluded_username} Hosts/{concluded_total} Total"
+            username_embed.add_field(
+                name="Completed Hosts",
+                value=completed_hosts_value,
+                inline=False
+            )
+            # Scheduled with readable date/time and links
+            if scheduled_trainings_username:
+                user_tz = user_data.get('timezone', 'UTC')
+                try:
+                    tz = pytz.timezone(user_tz)
+                except Exception:
+                    tz = pytz.UTC
+                scheduled_list = []
+                for t in scheduled_trainings_username:
+                    due = t.get('due_date')
+                    url = t.get('url')
+                    if due:
+                        dt_utc = datetime.utcfromtimestamp(int(due)/1000).replace(tzinfo=pytz.UTC)
                         dt_local = dt_utc.astimezone(tz)
                         date_str = dt_local.strftime('%A, %B %d, %Y at %I:%M %p')
-                    except Exception:
-                        date_str = t['due_date']
+                    else:
+                        date_str = 'No date'
+                    if url:
+                        date_str = f"[{date_str}]({url})"
+                    scheduled_list.append(date_str)
+                scheduled_value = "\n".join(scheduled_list)
+            else:
+                scheduled_value = "None"
+            username_embed.add_field(
+                name="Scheduled Hosts",
+                value=scheduled_value,
+                inline=False
+            )
+            username_embed.add_field(
+                name="Total Hosts (Completed + Scheduled)",
+                value=str(concluded_username + scheduled_username),
+                inline=False
+            )
+            # Quota logic for username-in-title
+            host_required = 3 if department == "Driving Department" else 2
+            if concluded_username >= host_required:
+                status = "PASSING"
+                thumb = "https://cdn.discordapp.com/attachments/1363651120349843656/1373024419198537889/image.png"
+            elif concluded_username + scheduled_username >= host_required:
+                status = "ON-TRACK"
+                thumb = "https://cdn.discordapp.com/attachments/1363651120349843656/1373024402635096084/image.png"
+            else:
+                status = "FAILING"
+                thumb = "https://cdn.discordapp.com/attachments/1363651120349843656/1373024369378332702/image.png"
+            username_embed.add_field(name="Quota Status (Hosts)", value=status, inline=False)
+            username_embed.set_thumbnail(url=thumb)
+
+            # --- Total Trainings Embed ---
+            total_embed = discord.Embed(
+                title=f"`Total Trainings:` {department}",
+                color=embed_color
+            )
+            total_embed.add_field(
+                name="Completed Trainings (Total)",
+                value=str(concluded_total),
+                inline=False
+            )
+            # Scheduled with readable date/time and links
+            if scheduled_trainings_total:
+                user_tz = user_data.get('timezone', 'UTC')
+                try:
+                    tz = pytz.timezone(user_tz)
+                except Exception:
+                    tz = pytz.UTC
+                scheduled_list = []
+                for t in scheduled_trainings_total:
+                    due = t.get('due_date')
+                    url = t.get('url')
+                    if due:
+                        dt_utc = datetime.utcfromtimestamp(int(due)/1000).replace(tzinfo=pytz.UTC)
+                        dt_local = dt_utc.astimezone(tz)
+                        date_str = dt_local.strftime('%A, %B %d, %Y at %I:%M %p')
+                    else:
+                        date_str = 'No date'
+                    if url:
+                        date_str = f"[{date_str}]({url})"
+                    scheduled_list.append(date_str)
+                scheduled_value = "\n".join(scheduled_list)
+            else:
+                scheduled_value = "None"
+            total_embed.add_field(
+                name="Scheduled Trainings (All)",
+                value=scheduled_value,
+                inline=False
+            )
+            total_embed.add_field(
+                name="Total Trainings (Completed + Scheduled)",
+                value=str(concluded_total + scheduled_total),
+                inline=False
+            )
+            # Quota logic for total
+            if concluded_total >= 8:
+                status = "PASSING"
+                thumb = "https://cdn.discordapp.com/attachments/1363651120349843656/1373024419198537889/image.png"
+            elif concluded_total + scheduled_total >= 8:
+                status = "ON-TRACK"
+                thumb = "https://cdn.discordapp.com/attachments/1363651120349843656/1373024402635096084/image.png"
+            else:
+                status = "FAILING"
+                thumb = "https://cdn.discordapp.com/attachments/1363651120349843656/1373024369378332702/image.png"
+            total_embed.add_field(name="Quota Status (Total)", value=status, inline=False)
+            total_embed.set_thumbnail(url=thumb)
+
+            # Only send the intro embed once, then send department embeds as followups
+            if department == departments[0]:
+                await interaction.edit_original_response(content=None, embed=intro_embed)
+            await interaction.followup.send(embeds=[username_embed, total_embed], ephemeral=True)
+
+    @app_commands.command(name="create", description="Request a new training task in ClickUp.")
+    @app_commands.describe(
+        date="Date in YYYY-MM-DD format (e.g. 2025-05-16)",
+        time="Time in 24-hour HH:MM format (e.g. 14:30 for 2:30 PM)",
+        department="Defaults to your primary department"
+    )
+    async def create(self, interaction: discord.Interaction, date: str, time: str, department: str = None):
+        connection = get_db_connection()
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute("SELECT primary_department, clickup_email, timezone, roblox_username FROM users WHERE discord_id = %s", (interaction.user.id,))
+        user_data = cursor.fetchone()
+        connection.close()
+
+        # Return early if any required field is 'Not set'
+        required_fields = ['primary_department', 'clickup_email', 'timezone', 'roblox_username']
+        if not user_data or any(user_data.get(field) == 'Not set' for field in required_fields):
+            await interaction.response.send_message("User data is missing or incomplete! Please run `/settings` and fill out all of the fields", ephemeral=True)
+            return
+
+        if not department:
+            department = user_data['primary_department']
+        list_id = self.clickup_list_ids.get(department)
+        if not list_id:
+            await interaction.response.send_message("Invalid department selected.", ephemeral=True)
+            return
+
+        # Get template ID from .env
+        template_env_key = f"CLICKUP_TEMPLATE_ID_{department.upper().replace(' ', '_')}"
+        template_id = os.getenv(template_env_key)
+        if not template_id:
+            await interaction.response.send_message("Cannot find card template.", ephemeral=True)
+            return
+
+        user_timezone = user_data['timezone']
+        clickup_email = user_data['clickup_email']
+        roblox_username = user_data['roblox_username']
+
+        # Convert user input date/time to BST/GMT (Europe/London)
+        try:
+            import pytz
+            from datetime import datetime, timedelta
+            user_tz = pytz.timezone(user_timezone)
+            naive_dt = datetime.strptime(f"{date} {time}", "%Y-%m-%d %H:%M")
+            local_dt = user_tz.localize(naive_dt)
+            london_tz = pytz.timezone("Europe/London")
+            london_dt = local_dt.astimezone(london_tz)
+            # Check if the requested date is more than 19 days in advance
+            now_utc = datetime.now(pytz.UTC)
+            if (london_dt - now_utc).days > 19:
+                await interaction.response.send_message("You cannot request a training more than 19 days in advance.", ephemeral=True)
+                return
+            unix_central = int(london_dt.timestamp() * 1000)
+            unix_before = int((london_dt - timedelta(hours=2, minutes=30)).timestamp() * 1000)
+            unix_after = int((london_dt + timedelta(hours=2, minutes=30)).timestamp() * 1000)
+            # For display/creation
+            day_of_week = london_dt.strftime('%A')
+            day = london_dt.strftime('%d')
+            month = london_dt.strftime('%m')
+            year = london_dt.strftime('%Y')
+            hour_min = london_dt.strftime('%H:%M')
+            # Determine if BST or GMT
+            is_dst = bool(london_dt.dst())
+            tz_label = 'BST' if is_dst else 'GMT'
+        except Exception as e:
+            await interaction.response.send_message(f"Failed to parse date/time or timezone: {e}", ephemeral=True)
+            return
+
+        # Query for overlapping tasks in the 5-hour window
+        url_check = (
+            f"https://api.clickup.com/api/v2/list/{list_id}/task?"
+            f"archived=false&"
+            f"statuses=request&"
+            f"statuses=pending%20staff&"
+            f"statuses=scheduled&"
+            f"due_date_gt={unix_before}&"
+            f"due_date_lt={unix_after}"
+        )
+        headers = self.get_clickup_headers()
+        response = requests.get(url_check, headers=headers)
+        if response.status_code != 200:
+            await interaction.response.send_message("Failed to check ClickUp for overlapping tasks.", ephemeral=True)
+            return
+        data = response.json()
+        tasks = data.get("tasks", [])
+        if tasks:
+            embed = discord.Embed(title="Overlapping Training(s) Found", color=discord.Color.red())
+            for task in tasks:
+                name = task.get('name', 'No Name')
+                due = task.get('due_date')
+                if due:
+                    dt = datetime.utcfromtimestamp(int(due)/1000).replace(tzinfo=pytz.UTC).astimezone(london_tz)
+                    due_str = dt.strftime('%A, %B %d, %Y at %H:%M')
                 else:
-                    date_str = 'No date'
-                url = t['url']
+                    due_str = 'No date'
+                url = task.get('url')
                 if url:
-                    date_str = f"[{date_str}]({url})"
-                scheduled_list.append(f"- {date_str}")
-            if not scheduled_list:
-                scheduled_list = ["- None"]
-            embed.add_field(name=f"Upcoming Trainings you Joined", value="\n".join(scheduled_list), inline=False)
-
-            embeds.append(embed)
-
-        await interaction.edit_original_response(content="Success, see department(s) trainings below")
-        for embed in embeds:
-            await interaction.followup.send(embed=embed, ephemeral=True)
-
-    # @app_commands.command(name="create", description="Create a training task in ClickUp.")
-    # async def create(self, interaction: discord.Interaction, date: str = None, time: str = None, department: str = None, priority: int = 3, status: str = "to do", tags: str = None):
-    #     connection = get_db_connection()
-    #     cursor = connection.cursor(dictionary=True)
-    #     cursor.execute("SELECT primary_department, clickup_email FROM users WHERE discord_id = %s", (interaction.user.id,))
-    #     user_data = cursor.fetchone()
-    #     connection.close()
-
-    #     if not user_data:
-    #         await interaction.response.send_message("User data not found. Please setup the bot first.")
-    #         return
-
-    #     if not department:
-    #         department = user_data['primary_department']
-
-    #     list_id = os.getenv(f"CLICKUP_LIST_ID_{department.upper().replace(' ', '_')}")
-    #     if not list_id:
-    #         await interaction.response.send_message("Invalid department selected.")
-    #         return
-
-    #     user_timezone = user_data['timezone']
-    #     clickup_email = user_data['clickup_email']
-
-    #     due_date_unix = convert_to_unix(date, time, user_timezone) if time and date else None
-
-    #     task_name = f"Task for {department} on {date} at {time}" if time and date else f"Task for {department}"
-    #     task_description = f"This task is assigned to {clickup_email}."
-
-    #     url = f"https://api.clickup.com/api/v2/list/{list_id}/task"
-    #     headers = self.get_clickup_headers()
-    #     payload = {
-    #         "name": task_name,
-    #         "description": task_description,
-    #         "due_date": due_date_unix,
-    #         "assignees": [clickup_email],
-    #         "priority": priority,
-    #         "status": status,
-    #         "tags": tags.split(",") if tags else []
-    #     }
-
-    #     response = requests.post(url, headers=headers, json=payload)
-    #     if response.status_code == 200:
-    #         task = response.json()
-    #         await interaction.response.send_message(f"Task created successfully!\nName: {task['name']}\nID: {task['id']}\nStatus: {task['status']['status']}")
-    #     else:
-    #         await interaction.response.send_message("Failed to create task. Please try again later.")
-
-    async def confirm_change(self, interaction, value, field):
-        embed = discord.Embed(title="Confirm Change", description=f"Are you sure you want to change {field.replace('_', ' ').title()} to {value}?")
-        view = self.ConfirmChangeView(value, field, self)
-        await interaction.response.edit_message(embed=embed, view=view)
-
-    class ConfirmChangeView(View):
-        def __init__(self, value, field, cog):
-            super().__init__(timeout=300)
-            self.value = value
-            self.field = field
-            self.cog = cog
-
-            self.add_item(Button(label="Confirm", style=discord.ButtonStyle.success, custom_id="confirm"))
-            self.add_item(Button(label="Cancel", style=discord.ButtonStyle.danger, custom_id="cancel"))
-
-        async def interaction_check(self, interaction: discord.Interaction):
-            if interaction.data['custom_id'] == "confirm":
-                connection = get_db_connection()
-                cursor = connection.cursor()
-                cursor.execute(f"UPDATE users SET {self.field} = %s WHERE discord_id = %s", (self.value, interaction.user.id))
-                connection.commit()
-                connection.close()
-                await interaction.response.send_message("Change confirmed and saved", ephemeral=True)
-            elif interaction.data['custom_id'] == "cancel":
-                await interaction.response.send_message("Change canceled", ephemeral=True)
-            return True
+                    name = f"[{name}]({url})"
+                embed.add_field(name="Conflicting training:", value=f"Scheduled for: {due_str}", inline=False)
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+            return
+        training_name = f"{day}/{month}/{year} - {day_of_week} - {hour_min} {tz_label} - {roblox_username}"
+        url_create = f"https://api.clickup.com/api/v2/list/{list_id}/taskTemplate/{template_id}"
+        payload = { "name": training_name }
+        headers_create = {
+            "accept": "application/json",
+            "content-type": "application/json",
+            "Authorization": self.clickup_api_token
+        }
+        create_resp = requests.post(url_create, headers=headers_create, json=payload)
+        if create_resp.status_code == 200:
+            task = create_resp.json()
+            await interaction.response.send_message(f"Training created successfully!\n{training_name}", ephemeral=True)
+        else:
+            await interaction.response.send_message(f"All your information was valid, but clickup failed to create training. ClickUp API response: {create_resp.text}", ephemeral=True)
 
 async def setup(bot):
     await bot.add_cog(Clickup(bot))
