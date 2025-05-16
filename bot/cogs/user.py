@@ -207,6 +207,29 @@ class User(commands.Cog):
                  user_data['primary_department'], user_data['secondary_department'], user_data['reminder_preferences'])
             )
             connection.commit()
+            # Send welcome DM on first use
+            try:
+                embed = discord.Embed(
+                    title="Thanks for using the SCR Training Assistant!",
+                    description="""Welcome! Please use `/settings` to configure your account information. More information about the bot can be found below:
+
+This bot has several main functions at this time:
+- It will send you reminders for your trainings (toggleable)
+- It will send you reminders to complete your quota (toggleable)
+- You can check your quota with a command
+- You can automatically create a training request with a command
+
+Additionally, a list of commands can be found below:
+> 1. `/settings` - Configure your account information.
+> 2. `/check` - Check if you've completed this month's quota, or see how far along you are.
+> 3. `/create` - Create a new training request in a department (defaults to your primary department), and automatically ensures that timeslot is availible.
+
+Note: This bot is still in development, and some features may not work as expected. If you encounter any issues, please report them to the bot administrator (Robotic_dony2468). Additonally, note that you'll get developer messages every so often as I push out updates. Thanks again!""",
+                    color=discord.Color.purple()
+                )
+                await interaction.user.send(embed=embed)
+            except Exception:
+                pass  # Ignore if DMs are closed
 
         connection.close()
 
@@ -219,7 +242,7 @@ class User(commands.Cog):
             embed.add_field(name="Secondary Department", value=user_data['secondary_department'], inline=True)
             embed.add_field(name="Reminder Preferences", value=user_data['reminder_preferences'], inline=False)
             view = SettingsMenuView(user_data, self)
-            await interaction.response.send_message(embed=embed, view=view)
+            await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
         await main_settings_embed()
 

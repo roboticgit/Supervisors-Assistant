@@ -31,7 +31,7 @@ class Clickup(commands.Cog):
 
     @app_commands.command(name="check", description="Check if you've reached quota.")
     async def check(self, interaction: discord.Interaction):
-        await interaction.response.send_message("Working on your request...")
+        await interaction.response.send_message("Working on your request...", ephemeral=True)
         connection = get_db_connection()
         cursor = connection.cursor(dictionary=True)
         cursor.execute("SELECT primary_department, secondary_department, roblox_username, clickup_email, timezone FROM users WHERE discord_id = %s", (interaction.user.id,))
@@ -154,16 +154,11 @@ class Clickup(commands.Cog):
             )
 
             percentage = round((username_tasks / total_tasks * 100), 2) if total_tasks > 0 else 0
-
-            # Always show the completed trainings fields, even if zero
             embed.add_field(name="Total Completed Trainings", value=str(total_tasks), inline=False)
             embed.add_field(name="How many Completed Trainings were Hosts", value=f"{username_tasks}/{total_tasks} ({percentage}%)", inline=False)
 
-            # Quota logic
             quota = total_tasks >= 8 and username_tasks >= 2
-            # Awaiting logic: not enough concluded, but enough if scheduled are included
             total_with_scheduled = total_tasks + len(scheduled_trainings)
-            # Count how many scheduled trainings are hosts (by username in name)
             scheduled_hosts = 0
             for t in scheduled_trainings:
                 if roblox_username in t['name']:
@@ -184,7 +179,6 @@ class Clickup(commands.Cog):
                 embed.description = f"Training information will appear below. **FAILING** indicates you have not completed and/or joined enough scheduled trainings to pass this month's quota.\n\nNote: Trainings are only displayed if their due date is past the start of the current month, and you are marked as an assignee."
                 embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/1372371251867160636/1372707760138883202/image.png?ex=6827c139&is=68266fb9&hm=84f5c4edb49e786e8d1db294185bfd8e99a78c348f974349400e0e72a563683c&")
 
-            # Always show the scheduled trainings field, even if none
             user_tz = user_data.get('timezone', 'UTC')
             try:
                 tz = pytz.timezone(user_tz)
@@ -192,7 +186,6 @@ class Clickup(commands.Cog):
                 tz = pytz.UTC
             scheduled_list = []
             for t in scheduled_trainings:
-                # Format date in user's timezone if possible
                 if t['due_date']:
                     try:
                         dt_utc = datetime.utcfromtimestamp(int(t['due_date'])/1000).replace(tzinfo=pytz.UTC)
@@ -214,54 +207,54 @@ class Clickup(commands.Cog):
 
         await interaction.edit_original_response(content="Success, see department(s) trainings below")
         for embed in embeds:
-            await interaction.followup.send(embed=embed)
+            await interaction.followup.send(embed=embed, ephemeral=True)
 
     # @app_commands.command(name="create", description="Create a training task in ClickUp.")
-    async def create(self, interaction: discord.Interaction, date: str = None, time: str = None, department: str = None, priority: int = 3, status: str = "to do", tags: str = None):
-        connection = get_db_connection()
-        cursor = connection.cursor(dictionary=True)
-        cursor.execute("SELECT primary_department, clickup_email FROM users WHERE discord_id = %s", (interaction.user.id,))
-        user_data = cursor.fetchone()
-        connection.close()
+    # async def create(self, interaction: discord.Interaction, date: str = None, time: str = None, department: str = None, priority: int = 3, status: str = "to do", tags: str = None):
+    #     connection = get_db_connection()
+    #     cursor = connection.cursor(dictionary=True)
+    #     cursor.execute("SELECT primary_department, clickup_email FROM users WHERE discord_id = %s", (interaction.user.id,))
+    #     user_data = cursor.fetchone()
+    #     connection.close()
 
-        if not user_data:
-            await interaction.response.send_message("User data not found. Please setup the bot first.")
-            return
+    #     if not user_data:
+    #         await interaction.response.send_message("User data not found. Please setup the bot first.")
+    #         return
 
-        if not department:
-            department = user_data['primary_department']
+    #     if not department:
+    #         department = user_data['primary_department']
 
-        list_id = os.getenv(f"CLICKUP_LIST_ID_{department.upper().replace(' ', '_')}")
-        if not list_id:
-            await interaction.response.send_message("Invalid department selected.")
-            return
+    #     list_id = os.getenv(f"CLICKUP_LIST_ID_{department.upper().replace(' ', '_')}")
+    #     if not list_id:
+    #         await interaction.response.send_message("Invalid department selected.")
+    #         return
 
-        user_timezone = user_data['timezone']
-        clickup_email = user_data['clickup_email']
+    #     user_timezone = user_data['timezone']
+    #     clickup_email = user_data['clickup_email']
 
-        due_date_unix = convert_to_unix(date, time, user_timezone) if time and date else None
+    #     due_date_unix = convert_to_unix(date, time, user_timezone) if time and date else None
 
-        task_name = f"Task for {department} on {date} at {time}" if time and date else f"Task for {department}"
-        task_description = f"This task is assigned to {clickup_email}."
+    #     task_name = f"Task for {department} on {date} at {time}" if time and date else f"Task for {department}"
+    #     task_description = f"This task is assigned to {clickup_email}."
 
-        url = f"https://api.clickup.com/api/v2/list/{list_id}/task"
-        headers = self.get_clickup_headers()
-        payload = {
-            "name": task_name,
-            "description": task_description,
-            "due_date": due_date_unix,
-            "assignees": [clickup_email],
-            "priority": priority,
-            "status": status,
-            "tags": tags.split(",") if tags else []
-        }
+    #     url = f"https://api.clickup.com/api/v2/list/{list_id}/task"
+    #     headers = self.get_clickup_headers()
+    #     payload = {
+    #         "name": task_name,
+    #         "description": task_description,
+    #         "due_date": due_date_unix,
+    #         "assignees": [clickup_email],
+    #         "priority": priority,
+    #         "status": status,
+    #         "tags": tags.split(",") if tags else []
+    #     }
 
-        response = requests.post(url, headers=headers, json=payload)
-        if response.status_code == 200:
-            task = response.json()
-            await interaction.response.send_message(f"Task created successfully!\nName: {task['name']}\nID: {task['id']}\nStatus: {task['status']['status']}")
-        else:
-            await interaction.response.send_message("Failed to create task. Please try again later.")
+    #     response = requests.post(url, headers=headers, json=payload)
+    #     if response.status_code == 200:
+    #         task = response.json()
+    #         await interaction.response.send_message(f"Task created successfully!\nName: {task['name']}\nID: {task['id']}\nStatus: {task['status']['status']}")
+    #     else:
+    #         await interaction.response.send_message("Failed to create task. Please try again later.")
 
     async def confirm_change(self, interaction, value, field):
         embed = discord.Embed(title="Confirm Change", description=f"Are you sure you want to change {field.replace('_', ' ').title()} to {value}?")
@@ -285,9 +278,9 @@ class Clickup(commands.Cog):
                 cursor.execute(f"UPDATE users SET {self.field} = %s WHERE discord_id = %s", (self.value, interaction.user.id))
                 connection.commit()
                 connection.close()
-                await interaction.response.send_message("Change confirmed and saved")
+                await interaction.response.send_message("Change confirmed and saved", ephemeral=True)
             elif interaction.data['custom_id'] == "cancel":
-                await interaction.response.send_message("Change canceled")
+                await interaction.response.send_message("Change canceled", ephemeral=True)
             return True
 
 async def setup(bot):

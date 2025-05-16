@@ -77,24 +77,8 @@ class Reminders(commands.Cog):
                     user = await self.bot.fetch_user(task['creator']['id'])
                     await user.send(f"Reminder: Task '{task['name']}' is due in {interval}.")
 
-    # @app_commands.command(name="set_reminder", description="Set a reminder for a task.")
-    async def set_reminder(self, interaction: discord.Interaction, task_id: str):
-        connection = self.get_db_connection()
-        cursor = connection.cursor()
-
-        # Example query to associate a reminder with a task
-        cursor.execute("INSERT INTO reminders (discord_id, task_id) VALUES (%s, %s)", (
-            interaction.user.id, task_id
-        ))
-        connection.commit()
-        connection.close()
-
-        embed = discord.Embed(title="Reminder Set", description="Your reminder has been set successfully!", color=discord.Color.green())
-        await interaction.response.send_message(embed=embed)
-
-    # Handle errors or missing information
     async def handle_error(interaction: discord.Interaction, error_message: str):
-        await interaction.response.send_message(error_message)
+        await interaction.response.send_message(error_message, ephemeral=True)
 
 async def setup(bot):
     await bot.add_cog(Reminders(bot))
