@@ -102,7 +102,7 @@ async def on_message(message):
         if not member:
             await message.channel.send('User not found.')
             return
-        embed = discord.Embed(title="Message from the Bot Administrator:", description=f"*{embed_content}*", color=discord.Color.yellow())
+        embed = discord.Embed(title="Message from the Bot Administrator:", description=f"*{embed_content}*", color=discord.Color.gold())
         try:
             await member.send(embed=embed)
             await message.channel.send(f"PM sent to {member.display_name}.")
