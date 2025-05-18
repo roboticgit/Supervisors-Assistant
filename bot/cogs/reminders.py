@@ -201,7 +201,7 @@ class Reminders(commands.Cog):
             if not list_id:
                 await self.log_to_channel(f"[Training] No list_id for {dept_key}")
                 continue
-            url = f"https://api.clickup.com/api/v2/list/{list_id}/task?archived=false&statuses=scheduled&due_date_lt={unix_25h_away}"
+            url = f"https://api.clickup.com/api/v2/list/{list_id}/task?archived=false&statuses=scheduled&statuses=scheduled&due_date_lt={unix_25h_away}"
             headers = {"Authorization": os.getenv('CLICKUP_API_TOKEN'), "accept": "application/json"}
             response = requests.get(url, headers=headers)
             await self.log_to_channel(f"[Training] Fetched ClickUp tasks for {dept_key} (status={response.status_code})")
