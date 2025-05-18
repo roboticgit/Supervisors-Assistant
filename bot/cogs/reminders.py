@@ -148,7 +148,7 @@ class Reminders(commands.Cog):
         except Exception:
             pass
 
-    @tasks.loop(minutes=15)
+    @tasks.loop(minutes=1)
     async def send_training_reminders(self):
         import requests
         from time import sleep
