@@ -77,13 +77,13 @@ async def on_message(message):
         embed = discord.Embed(title="Bot Update:", description=f"{embed_content}", color=discord.Color.purple())
         sent = 0
         for user in users:
-            member = message.guild.get_member(user['discord_id'])
-            if member:
-                try:
+            try:
+                member = await bot.fetch_user(user['discord_id'])
+                if member:
                     await member.send(embed=embed)
                     sent += 1
-                except Exception:
-                    continue
+            except Exception:
+                continue
         await message.channel.send(f"Published to {sent} users.")
         return
     # >pm [user] [content]
