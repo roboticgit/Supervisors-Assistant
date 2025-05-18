@@ -43,11 +43,13 @@ class Reminders(commands.Cog):
         days_in_month = (today.replace(month=today.month % 12 + 1, day=1) - timedelta(days=1)).day
         days_left = days_in_month - day_of_month
         # Only run on the 7th, 11th, and when 7 or 3 days left
+        await self.log_to_channel(f"[Quota] Loop start: day_of_month={day_of_month}, days_left={days_left}")
         if day_of_month not in [7, 11] and days_left not in [7, 3]:
+            await self.log_to_channel(f"[Quota] Skipping: Not a reminder day.")
             return
         connection = self.get_db_connection()
         cursor = connection.cursor(dictionary=True)
-        cursor.execute("SELECT discord_id, primary_department, secondary_department, roblox_username, clickup_email, timezone FROM users")
+        cursor.execute("SELECT discord_id, primary_department, secondary_department, roblox_username, clickup_email, timezone, reminder_preferences FROM users")
         users = cursor.fetchall()
         connection.close()
         await self.log_to_channel(f"[Quota] Fetching quota info for {len(users)} users on {datetime.now(pytz.UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}")
@@ -55,9 +57,11 @@ class Reminders(commands.Cog):
             # Skip users with missing or 'Not set' data
             if any(user.get(field) in (None, 'Not set') for field in [
                 'primary_department', 'roblox_username', 'clickup_email', 'timezone', 'reminder_preferences']):
+                await self.log_to_channel(f"[Quota] Skipping user {user.get('discord_id')} due to missing data.")
                 continue
             # Only send if 'quota' is in reminder_preferences
             if 'quota' not in user.get('reminder_preferences', '').lower():
+                await self.log_to_channel(f"[Quota] Skipping user {user.get('discord_id')} (no 'quota' in preferences)")
                 continue
             discord_id = user['discord_id']
             departments = [user['primary_department']]
@@ -67,6 +71,7 @@ class Reminders(commands.Cog):
                 # Check reminder preferences
                 pref = await self.get_user_reminder_pref(discord_id)
                 if not pref or 'quota' not in pref.lower():
+                    await self.log_to_channel(f"[Quota] Skipping user {discord_id} for {department} (no 'quota' in pref)")
                     continue
                 # --- ClickUp quota logic (copied from clickup.py) ---
                 # Set headers directly
@@ -78,6 +83,7 @@ class Reminders(commands.Cog):
                 list_id_env_key = f"CLICKUP_LIST_ID_{department.upper().replace(' ', '_')}"
                 list_id = os.getenv(list_id_env_key)
                 if not list_id:
+                    await self.log_to_channel(f"[Quota] No list_id for department {department}")
                     continue
                 # Get first of month in ms
                 from datetime import timezone as dt_timezone
@@ -89,7 +95,6 @@ class Reminders(commands.Cog):
                 # Gather all tasks for this department
                 concluded_username = 0
                 concluded_total = 0
-                # Concluded (archived true/false)
                 for archived_value in ["false", "true"]:
                     page = 0
                     while True:
@@ -104,11 +109,14 @@ class Reminders(commands.Cog):
                         )
                         import requests
                         response = requests.get(url_with_params, headers=headers)
+                        await self.log_to_channel(f"[Quota] Fetched ClickUp tasks for {department} (archived={archived_value}, page={page}, status={response.status_code})")
                         if response.status_code != 200:
+                            await self.log_to_channel(f"[Quota] Error fetching tasks: {response.text}")
                             break
                         data = response.json()
                         tasks = data.get("tasks", [])
                         if not tasks:
+                            await self.log_to_channel(f"[Quota] No tasks found for {department} (archived={archived_value}, page={page})")
                             break
                         for task in tasks:
                             assignees = [assignee['email'] for assignee in task.get('assignees', [])]
@@ -121,15 +129,19 @@ class Reminders(commands.Cog):
                         if data.get("last_page", False):
                             break
                         page += 1
+                await self.log_to_channel(f"[Quota] User {discord_id} ({department}): concluded_total={concluded_total}, concluded_username={concluded_username}")
                 # --- Reminder logic ---
                 host_required = 3 if department == "Driving Department" else 2
+                found_to_send = False
                 if day_of_month in [7, 11]:
                     if concluded_total < 1:
                         found_to_send = True
+                        await self.log_to_channel(f"[Quota] Criteria met for {discord_id} ({department}) on day {day_of_month}: concluded_total={concluded_total}")
                         await self.send_reminder(discord_id, department, day_of_month)
                 elif days_left in [7, 3]:
                     if concluded_total < 8 or concluded_username < host_required:
                         found_to_send = True
+                        await self.log_to_channel(f"[Quota] Criteria met for {discord_id} ({department}) with {days_left} days left: concluded_total={concluded_total}, concluded_username={concluded_username}, host_required={host_required}")
                         await self.send_reminder(discord_id, department, days_left)
                 if found_to_send:
                     await self.log_to_channel(f"[Quota] Would DM {discord_id} for {department} (criteria met)")
@@ -187,55 +199,84 @@ class Reminders(commands.Cog):
         for dept_key in department_keys:
             list_id = os.getenv(dept_key)
             if not list_id:
+                await self.log_to_channel(f"[Training] No list_id for {dept_key}")
                 continue
             url = f"https://api.clickup.com/api/v2/list/{list_id}/task?archived=false&statuses=scheduled&due_date_lt={unix_25h_away}"
             headers = {"Authorization": os.getenv('CLICKUP_API_TOKEN'), "accept": "application/json"}
             response = requests.get(url, headers=headers)
+            await self.log_to_channel(f"[Training] Fetched ClickUp tasks for {dept_key} (status={response.status_code})")
             if response.status_code != 200:
+                await self.log_to_channel(f"[Training] Error fetching tasks: {response.text}")
                 continue
             data = response.json()
             for task in data.get('tasks', []):
                 due_date = int(task.get('due_date', 0))
                 assignees = [a['email'] for a in task.get('assignees', [])]
-                for email in assignees:
-                    user = user_lookup.get(email)
-                    if not user:
-                        continue
-                    # Skip users with any field set to 'Not set'
-                    if any(user.get(field) == 'Not set' for field in ['discord_id', 'roblox_username', 'clickup_email', 'reminder_preferences']):
-                        continue
-                    # Only send if 'training' is in reminder_preferences
-                    if 'training' not in user.get('reminder_preferences', '').lower():
-                        continue
-                    discord_id = user['discord_id']
-                    roblox_username = user['roblox_username']
-                    found_to_send = None
-                    # Wait until 24h away
-                    if unix_24h_away - 900000 < due_date <= unix_24h_away:
-                        found_to_send = 1
-                        await self.send_training_embed(discord_id, 1, task)
-                    # 10h away
-                    elif unix_10h_away - 900000 < due_date <= unix_10h_away:
-                        if email in [a['email'] for a in task.get('assignees', [])]:
-                            found_to_send = 2
-                            await self.send_training_embed(discord_id, 2, task)
-                    # 2h away
-                    elif unix_2h_away - 900000 < due_date <= unix_2h_away:
-                        if email in [a['email'] for a in task.get('assignees', [])]:
-                            found_to_send = 3
-                            await self.send_training_embed(discord_id, 3, task)
-                    # 30m away
-                    elif unix_30m_away - 900000 < due_date <= unix_30m_away:
-                        if roblox_username in task['name']:
-                            found_to_send = 4
-                            await self.send_training_embed(discord_id, 4, task)
-                    # 15m away
-                    elif unix_15m_away - 900000 < due_date <= unix_15m_away:
-                        if roblox_username not in task['name']:
-                            found_to_send = 5
-                            await self.send_training_embed(discord_id, 5, task)
-                    if found_to_send:
-                        await self.log_to_channel(f"[Training] Would DM {discord_id} for task '{task.get('name','')}' (criteria {found_to_send})")
+                # --- Check if task is in any reminder window ---
+                in_window = False
+                window_type = None
+                if unix_24h_away - 900000 < due_date <= unix_24h_away:
+                    in_window = True
+                    window_type = '24h'
+                elif unix_10h_away - 900000 < due_date <= unix_10h_away:
+                    in_window = True
+                    window_type = '10h'
+                elif unix_2h_away - 900000 < due_date <= unix_2h_away:
+                    in_window = True
+                    window_type = '2h'
+                elif unix_30m_away - 900000 < due_date <= unix_30m_away:
+                    in_window = True
+                    window_type = '30m'
+                elif unix_15m_away - 900000 < due_date <= unix_15m_away:
+                    in_window = True
+                    window_type = '15m'
+                # --- If in window but no matching user, log it ---
+                if in_window:
+                    found_user = False
+                    for email in assignees:
+                        user = user_lookup.get(email)
+                        if user:
+                            found_user = True
+                            # --- User found, send reminders as before ---
+                            discord_id = user['discord_id']
+                            roblox_username = user['roblox_username']
+                            found_to_send = None
+                            # Wait until 24h away
+                            if unix_24h_away - 900000 < due_date <= unix_24h_away:
+                                found_to_send = 1
+                                await self.log_to_channel(f"[Training] Criteria 1 met for {discord_id} (24h)")
+                                await self.send_training_embed(discord_id, 1, task)
+                            # 10h away
+                            elif unix_10h_away - 900000 < due_date <= unix_10h_away:
+                                if email in [a['email'] for a in task.get('assignees', [])]:
+                                    found_to_send = 2
+                                    await self.log_to_channel(f"[Training] Criteria 2 met for {discord_id} (10h)")
+                                    await self.send_training_embed(discord_id, 2, task)
+                            # 2h away
+                            elif unix_2h_away - 900000 < due_date <= unix_2h_away:
+                                if email in [a['email'] for a in task.get('assignees', [])]:
+                                    found_to_send = 3
+                                    await self.log_to_channel(f"[Training] Criteria 3 met for {discord_id} (2h)")
+                                    await self.send_training_embed(discord_id, 3, task)
+                            # 30m away
+                            elif unix_30m_away - 900000 < due_date <= unix_30m_away:
+                                if roblox_username in task['name']:
+                                    found_to_send = 4
+                                    await self.log_to_channel(f"[Training] Criteria 4 met for {discord_id} (30m)")
+                                    await self.send_training_embed(discord_id, 4, task)
+                            # 15m away
+                            elif unix_15m_away - 900000 < due_date <= unix_15m_away:
+                                if roblox_username not in task['name']:
+                                    found_to_send = 5
+                                    await self.log_to_channel(f"[Training] Criteria 5 met for {discord_id} (15m)")
+                                    await self.send_training_embed(discord_id, 5, task)
+                            if found_to_send:
+                                await self.log_to_channel(f"[Training] Would DM {discord_id} for task '{task.get('name','')}' (criteria {found_to_send})")
+                    if not found_user:
+                        # Log to channel with API response info
+                        await self.log_to_channel(
+                            f"[Training][NoAssignee] Task '{task.get('name','')}' (due {datetime.utcfromtimestamp(due_date/1000).strftime('%Y-%m-%d %H:%M UTC')}) in window '{window_type}' but no matching user in DB. Assignees: {assignees}"
+                        )
 
     async def send_training_embed(self, discord_id, embed_num, task):
         user = self.bot.get_user(discord_id)
