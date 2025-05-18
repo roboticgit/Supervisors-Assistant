@@ -74,7 +74,7 @@ async def on_message(message):
         cursor.execute("SELECT discord_id FROM users")
         users = cursor.fetchall()
         connection.close()
-        embed = discord.Embed(description=embed_content, color=discord.Color.purple())
+        embed = discord.Embed(title="Bot Update:", description=f"{embed_content}", color=discord.Color.purple())
         sent = 0
         for user in users:
             member = message.guild.get_member(user['discord_id'])
@@ -100,9 +100,9 @@ async def on_message(message):
             return
         member = message.guild.get_member(user_id)
         if not member:
-            await message.channel.send('User not found in this guild.')
+            await message.channel.send('User not found.')
             return
-        embed = discord.Embed(description=embed_content, color=discord.Color.gold())
+        embed = discord.Embed(title="Message from the Bot Administrator:", description=f"*{embed_content}*", color=discord.Color.yellow())
         try:
             await member.send(embed=embed)
             await message.channel.send(f"PM sent to {member.display_name}.")
