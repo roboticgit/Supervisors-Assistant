@@ -46,8 +46,18 @@ async def on_member_join(member):
 
 @tree.command(name="ping", description="Check if the bot is responsive.")
 async def ping(interaction: discord.Interaction):
-    embed = discord.Embed(title="The bot is alive and well, thanks for asking!", description=":ping_pong:", color=discord.Color.dark_grey())
+    import time
+    start = time.perf_counter()
+    embed = discord.Embed(title=":ping_pong:", description="", color=discord.Color.dark_grey())
     await interaction.response.send_message(embed=embed, ephemeral=True)
+    end = time.perf_counter()
+    delay_ms = int((end - start) * 1000)
+    # Edit the original response to include the delay
+    await interaction.edit_original_response(embed=discord.Embed(
+        title=":ping_pong:",
+        description=f"Response delay: `{delay_ms}ms`",
+        color=discord.Color.dark_grey()
+    ))
 
 # Text-based commands for the designated guild only
 GUILD_ID = 1373047358648094851  # From user.py
@@ -124,9 +134,9 @@ async def on_message(message):
     # >shutdown
     if content.strip() == '>shutdown':
         if not is_owner:
-            await message.channel.send('You do not have permission to use this command.', delete_after=10)
+            await message.channel.send('You do not have permission to use this command.')
             return
-        await message.channel.send('Shutting down bot...', delete_after=5)
+        await message.channel.send('Shutting down bot...')
         await bot.close()
         os._exit(0)
         return
