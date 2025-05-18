@@ -29,6 +29,13 @@ class Reminders(commands.Cog):
             return None
         return row['reminder_preferences']
 
+    async def log_to_channel(self, message):
+        channel = self.bot.get_channel(self.LOG_CHANNEL_ID)
+        if channel:
+            await channel.send(message)
+
+    LOG_CHANNEL_ID = 1373467224374906910  
+
     @tasks.loop(hours=24)
     async def send_quota_reminders(self):
         today = datetime.now(pytz.UTC)
@@ -43,6 +50,7 @@ class Reminders(commands.Cog):
         cursor.execute("SELECT discord_id, primary_department, secondary_department, roblox_username, clickup_email, timezone FROM users")
         users = cursor.fetchall()
         connection.close()
+        await self.log_to_channel(f"[Quota] Fetching quota info for {len(users)} users on {datetime.now(pytz.UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}")
         for user in users:
             # Skip users with missing or 'Not set' data
             if any(user.get(field) in (None, 'Not set') for field in [
@@ -117,10 +125,14 @@ class Reminders(commands.Cog):
                 host_required = 3 if department == "Driving Department" else 2
                 if day_of_month in [7, 11]:
                     if concluded_total < 1:
+                        found_to_send = True
                         await self.send_reminder(discord_id, department, day_of_month)
                 elif days_left in [7, 3]:
                     if concluded_total < 8 or concluded_username < host_required:
+                        found_to_send = True
                         await self.send_reminder(discord_id, department, days_left)
+                if found_to_send:
+                    await self.log_to_channel(f"[Quota] Would DM {discord_id} for {department} (criteria met)")
 
     async def send_reminder(self, discord_id, department, timing):
         user = self.bot.get_user(discord_id)
@@ -170,6 +182,7 @@ class Reminders(commands.Cog):
         cursor.execute("SELECT discord_id, roblox_username, clickup_email, reminder_preferences FROM users")
         users = cursor.fetchall()
         connection.close()
+        await self.log_to_channel(f"[Training] Fetching training info for {len(users)} users on {datetime.now(pytz.UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}")
         user_lookup = {u['clickup_email']: u for u in users if u['clickup_email'] not in (None, 'Not set')}
         for dept_key in department_keys:
             list_id = os.getenv(dept_key)
@@ -196,25 +209,33 @@ class Reminders(commands.Cog):
                         continue
                     discord_id = user['discord_id']
                     roblox_username = user['roblox_username']
+                    found_to_send = None
                     # Wait until 24h away
                     if unix_24h_away - 900000 < due_date <= unix_24h_away:
+                        found_to_send = 1
                         await self.send_training_embed(discord_id, 1, task)
                     # 10h away
                     elif unix_10h_away - 900000 < due_date <= unix_10h_away:
                         if email in [a['email'] for a in task.get('assignees', [])]:
+                            found_to_send = 2
                             await self.send_training_embed(discord_id, 2, task)
                     # 2h away
                     elif unix_2h_away - 900000 < due_date <= unix_2h_away:
                         if email in [a['email'] for a in task.get('assignees', [])]:
+                            found_to_send = 3
                             await self.send_training_embed(discord_id, 3, task)
                     # 30m away
                     elif unix_30m_away - 900000 < due_date <= unix_30m_away:
                         if roblox_username in task['name']:
+                            found_to_send = 4
                             await self.send_training_embed(discord_id, 4, task)
                     # 15m away
                     elif unix_15m_away - 900000 < due_date <= unix_15m_away:
                         if roblox_username not in task['name']:
+                            found_to_send = 5
                             await self.send_training_embed(discord_id, 5, task)
+                    if found_to_send:
+                        await self.log_to_channel(f"[Training] Would DM {discord_id} for task '{task.get('name','')}' (criteria {found_to_send})")
 
     async def send_training_embed(self, discord_id, embed_num, task):
         user = self.bot.get_user(discord_id)
@@ -255,11 +276,11 @@ class Reminders(commands.Cog):
             view = discord.ui.View()
             view.add_item(discord.ui.Button(label="ClickUp Task", url=task_url))
         elif embed_num == 2:
-            embed = discord.Embed(title=f"Reminder:`{type_str}` in 10 hours", description=f"Your `{type_str}` training is in 10 hours ({date_str}). Run any final checks to ensure there won't be a scheduling conflict.", color=discord.Color.yellow())
+            embed = discord.Embed(title=f"Reminder:`{type_str}` in 10 hours", description=f"Your `{type_str}` training is in 10 hours ({date_str}). You should probably set an alarm for this training.", color=discord.Color.yellow())
             view = discord.ui.View()
             view.add_item(discord.ui.Button(label="ClickUp Task", url=task_url))
         elif embed_num == 3:
-            embed = discord.Embed(title=f"Reminder: `{type_str}` in 2 hours", description=f"Your `{type_str}` is happening in 2 hours. ", color=discord.Color.orange())
+            embed = discord.Embed(title=f"Reminder: `{type_str}` in 2 hours", description=f"Your `{type_str}` is happening in 2 hours. You should double check you've set an alarm for this training if you intend to leave your computer.", color=discord.Color.orange())
             view = discord.ui.View()
             view.add_item(discord.ui.Button(label="ClickUp Task", url=task_url))
         elif embed_num == 4:
