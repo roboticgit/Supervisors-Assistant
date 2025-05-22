@@ -8,14 +8,16 @@ import mysql.connector
 class Reminders(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self._quota_task_started = False
+        self._training_task_started = False
         try:
             self.send_quota_reminders.start()
-            print(f"[Reminders] send_quota_reminders started at {datetime.now(pytz.UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}")
+            self._quota_task_started = True
         except Exception as e:
             print(f"[Reminders] Failed to start send_quota_reminders: {e}")
         try:
             self.send_training_reminders.start()
-            print(f"[Reminders] send_training_reminders started at {datetime.now(pytz.UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}")
+            self._training_task_started = True
         except Exception as e:
             print(f"[Reminders] Failed to start send_training_reminders: {e}")
 
@@ -298,18 +300,22 @@ class Reminders(commands.Cog):
     @send_quota_reminders.before_loop
     async def before_quota_reminders(self):
         now = datetime.now(pytz.UTC)
-        next_run = now.replace(hour=0, minute=0, second=0, microsecond=1)
+        next_run = now.replace(hour=0, minute=0, second=0, microsecond=0)
         if now >= next_run:
             next_run += timedelta(days=1)
+        print(f"[Reminders] send_quota_reminders will start at {next_run.strftime('%Y-%m-%d %H:%M:%S UTC')}")
         await discord.utils.sleep_until(next_run)
+        print(f"[Reminders] send_quota_reminders actually started at {datetime.now(pytz.UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}")
 
     @send_training_reminders.before_loop
     async def before_training_reminders(self):
         now = datetime.now(pytz.UTC)
-        next_run = now.replace(hour=0, minute=0, second=0, microsecond=1)
+        next_run = now.replace(hour=0, minute=0, second=0, microsecond=0)
         if now >= next_run:
             next_run += timedelta(days=1)
+        print(f"[Reminders] send_training_reminders will start at {next_run.strftime('%Y-%m-%d %H:%M:%S UTC')}")
         await discord.utils.sleep_until(next_run)
+        print(f"[Reminders] send_training_reminders actually started at {datetime.now(pytz.UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}")
 
 async def setup(bot):
     await bot.add_cog(Reminders(bot))
