@@ -8,8 +8,16 @@ import mysql.connector
 class Reminders(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.send_quota_reminders.start()
-        self.send_training_reminders.start()
+        try:
+            self.send_quota_reminders.start()
+            print(f"[Reminders] send_quota_reminders started at {datetime.now(pytz.UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}")
+        except Exception as e:
+            print(f"[Reminders] Failed to start send_quota_reminders: {e}")
+        try:
+            self.send_training_reminders.start()
+            print(f"[Reminders] send_training_reminders started at {datetime.now(pytz.UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}")
+        except Exception as e:
+            print(f"[Reminders] Failed to start send_training_reminders: {e}")
 
     def get_db_connection(self):
         return mysql.connector.connect(
@@ -34,7 +42,7 @@ class Reminders(commands.Cog):
         if channel:
             await channel.send(message)
 
-    LOG_CHANNEL_ID = 1373467224374906910  
+    LOG_CHANNEL_ID = 1374924175000469625  
 
     @tasks.loop(hours=24)
     async def send_quota_reminders(self):
@@ -42,7 +50,6 @@ class Reminders(commands.Cog):
         day_of_month = today.day
         days_in_month = (today.replace(month=today.month % 12 + 1, day=1) - timedelta(days=1)).day
         days_left = days_in_month - day_of_month
-        # Only run on the 7th, 11th, and when 7 or 3 days left
         await self.log_to_channel(f"[Quota] Loop start: day_of_month={day_of_month}, days_left={days_left}")
         if day_of_month not in [7, 11] and days_left not in [7, 3]:
             await self.log_to_channel(f"[Quota] Skipping: Not a reminder day.")
@@ -54,12 +61,10 @@ class Reminders(commands.Cog):
         connection.close()
         await self.log_to_channel(f"[Quota] Fetching quota info for {len(users)} users on {datetime.now(pytz.UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}")
         for user in users:
-            # Skip users with missing or 'Not set' data
             if any(user.get(field) in (None, 'Not set') for field in [
                 'primary_department', 'roblox_username', 'clickup_email', 'timezone', 'reminder_preferences']):
                 await self.log_to_channel(f"[Quota] Skipping user {user.get('discord_id')} due to missing data.")
                 continue
-            # Only send if 'quota' is in reminder_preferences
             if 'quota' not in user.get('reminder_preferences', '').lower():
                 await self.log_to_channel(f"[Quota] Skipping user {user.get('discord_id')} (no 'quota' in preferences)")
                 continue
@@ -68,31 +73,25 @@ class Reminders(commands.Cog):
             if user['secondary_department'] and user['secondary_department'] != 'None':
                 departments.append(user['secondary_department'])
             for department in departments:
-                # Check reminder preferences
                 pref = await self.get_user_reminder_pref(discord_id)
                 if not pref or 'quota' not in pref.lower():
                     await self.log_to_channel(f"[Quota] Skipping user {discord_id} for {department} (no 'quota' in pref)")
                     continue
-                # --- ClickUp quota logic (copied from clickup.py) ---
-                # Set headers directly
                 headers = {
                     "Authorization": os.getenv('CLICKUP_API_TOKEN'),
                     "accept": "application/json"
                 }
-                # Get list_id directly from .env
                 list_id_env_key = f"CLICKUP_LIST_ID_{department.upper().replace(' ', '_')}"
                 list_id = os.getenv(list_id_env_key)
                 if not list_id:
                     await self.log_to_channel(f"[Quota] No list_id for department {department}")
                     continue
-                # Get first of month in ms
                 from datetime import timezone as dt_timezone
                 now = datetime.now(dt_timezone.utc)
                 first_of_month = datetime(year=now.year, month=now.month, day=1, tzinfo=dt_timezone.utc)
                 first_of_month_unix_ms = int(first_of_month.timestamp() * 1000)
                 roblox_username = user['roblox_username']
                 clickup_email = user['clickup_email']
-                # Gather all tasks for this department
                 concluded_username = 0
                 concluded_total = 0
                 for archived_value in ["false", "true"]:
@@ -130,7 +129,6 @@ class Reminders(commands.Cog):
                             break
                         page += 1
                 await self.log_to_channel(f"[Quota] User {discord_id} ({department}): concluded_total={concluded_total}, concluded_username={concluded_username}")
-                # --- Reminder logic ---
                 host_required = 3 if department == "Driving Department" else 2
                 found_to_send = False
                 if day_of_month in [7, 11]:
@@ -154,7 +152,6 @@ class Reminders(commands.Cog):
         day_of_month = today.day
         days_in_month = (today.replace(month=today.month % 12 + 1, day=1) - timedelta(days=1)).day
         days_left = days_in_month - day_of_month
-        # Reminder type logic
         if day_of_month == 7:
             embed = discord.Embed(title=f"Bi-Weekly Reminder: A Week Left ({department})", description="You are receiving this reminder because you have not completed at least one Host/CoHost within the initial 2 weeks of the month!\n- Note that these do NOT account for LOAs\n\nYou can disable these in `/settings`", color=discord.Color.yellow())
         elif day_of_month == 11:
@@ -297,6 +294,22 @@ class Reminders(commands.Cog):
                 await user.send(embed=embed)
         except Exception:
             pass
+
+    @send_quota_reminders.before_loop
+    async def before_quota_reminders(self):
+        now = datetime.now(pytz.UTC)
+        next_run = now.replace(hour=0, minute=0, second=0, microsecond=1)
+        if now >= next_run:
+            next_run += timedelta(days=1)
+        await discord.utils.sleep_until(next_run)
+
+    @send_training_reminders.before_loop
+    async def before_training_reminders(self):
+        now = datetime.now(pytz.UTC)
+        next_run = now.replace(hour=0, minute=0, second=0, microsecond=1)
+        if now >= next_run:
+            next_run += timedelta(days=1)
+        await discord.utils.sleep_until(next_run)
 
 async def setup(bot):
     await bot.add_cog(Reminders(bot))
