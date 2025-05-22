@@ -178,11 +178,6 @@ class Reminders(commands.Cog):
         from time import sleep
         now = datetime.now(pytz.UTC)
         unix_25h_away = int((now + timedelta(hours=25)).timestamp() * 1000)
-        unix_24h_away = int((now + timedelta(hours=24)).timestamp() * 1000)
-        unix_10h_away = int((now + timedelta(hours=10)).timestamp() * 1000)
-        unix_2h_away = int((now + timedelta(hours=2)).timestamp() * 1000)
-        unix_30m_away = int((now + timedelta(minutes=30)).timestamp() * 1000)
-        unix_15m_away = int((now + timedelta(minutes=15)).timestamp() * 1000)
         department_keys = [
             'CLICKUP_LIST_ID_DRIVING_DEPARTMENT',
             'CLICKUP_LIST_ID_DISPATCHING_DEPARTMENT',
@@ -194,12 +189,10 @@ class Reminders(commands.Cog):
         cursor.execute("SELECT discord_id, roblox_username, clickup_email, reminder_preferences FROM users")
         users = cursor.fetchall()
         connection.close()
-        await self.log_to_channel(f"[Training] Fetching training info for {len(users)} users on {datetime.now(pytz.UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}")
         user_lookup = {u['clickup_email']: u for u in users if u['clickup_email'] not in (None, 'Not set')}
         for dept_key in department_keys:
             list_id = os.getenv(dept_key)
             if not list_id:
-                await self.log_to_channel(f"[Training] No list_id for {dept_key}")
                 continue
             url = f"https://api.clickup.com/api/v2/list/{list_id}/task?archived=false&statuses=scheduled&statuses=scheduled&due_date_lt={unix_25h_away}"
             headers = {"Authorization": os.getenv('CLICKUP_API_TOKEN'), "accept": "application/json"}
@@ -244,16 +237,13 @@ class Reminders(commands.Cog):
                             await self.log_to_channel(
                                 f"[Training][NoAssignee] Task '{task.get('name','')}' (due {datetime.utcfromtimestamp(due_date/1000).strftime('%Y-%m-%d %H:%M UTC')}) at interval '{label}' but no matching user in DB. Assignees: {assignees}"
                             )
-                        break  # Only send for one interval per run
+                        break  
 
     async def send_training_embed(self, discord_id, embed_num, task):
         user = self.bot.get_user(discord_id)
         if not user:
             return
-        # --- Variable extraction ---
-        # Determine type (Host or Co-Host) based on ROBLOX username in task name
         task_name = task.get('name', '')
-        # Fetch user's ROBLOX username and timezone from DB
         connection = self.get_db_connection()
         cursor = connection.cursor(dictionary=True)
         cursor.execute("SELECT roblox_username, timezone FROM users WHERE discord_id = %s", (discord_id,))
@@ -265,21 +255,18 @@ class Reminders(commands.Cog):
             type_str = 'Host'
         else:
             type_str = 'Co-Host'
-        # Get due date in user's timezone
         due_date_ms = int(task.get('due_date', 0))
         due_date_utc = datetime.utcfromtimestamp(due_date_ms / 1000)
         due_date_local = due_date_utc.replace(tzinfo=pytz.UTC).astimezone(user_tz)
         date_str = due_date_local.strftime('%A, %B %d, %Y at %I:%M %p %Z')
-        # Get the actual ClickUp task URL
         task_url = task.get('url')
         if not task_url:
-            # Fallback: construct from task_id if available
             task_id = task.get('id')
             if task_id:
                 task_url = f"https://app.clickup.com/t/{task_id}"
             else:
                 task_url = "https://app.clickup.com/"
-        # --- Embeds ---
+
         if embed_num == 1:
             embed = discord.Embed(title=f"Upcoming `{type_str}` in a day", description=f"You have an upcoming `{type_str}` occuring in 24 hours ({date_str}). Now would be a good time to ensure you are available.", color=discord.Color.blue())
             view = discord.ui.View()
