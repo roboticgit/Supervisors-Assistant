@@ -10,6 +10,11 @@ class Reminders(commands.Cog):
         self.bot = bot
         self._quota_task_started = False
         self._training_task_started = False
+        # Schedule the tasks to start after cog is fully ready
+        bot.loop.create_task(self._delayed_start())
+
+    async def _delayed_start(self):
+        await self.bot.wait_until_ready()
         try:
             self.send_quota_reminders.start()
             self._quota_task_started = True
