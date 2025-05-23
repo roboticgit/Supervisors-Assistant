@@ -44,10 +44,21 @@ class Reminders(commands.Cog):
             return None
         return row['reminder_preferences']
 
-    async def log_to_channel(self, message):
+    async def log_to_channel(self, message, department=None):
         channel = self.bot.get_channel(self.LOG_CHANNEL_ID)
         if channel:
-            await channel.send(message)
+            emoji = ''
+            if department:
+                dept = department.lower()
+                if 'driving' in dept:
+                    emoji = '\U0001F534'  # Red circle
+                elif 'dispatch' in dept:
+                    emoji = '\U0001F7E0'  # Orange circle
+                elif 'guard' in dept:
+                    emoji = '\U0001F7E1'  # Yellow circle
+                elif 'signal' in dept:
+                    emoji = '\U0001F7E2'  # Green circle
+            await channel.send(f"{emoji} {message}" if emoji else message)
 
     LOG_CHANNEL_ID = 1374924175000469625  
 
@@ -316,7 +327,7 @@ class Reminders(commands.Cog):
                                     continue
                                 if embed_num == 5 and roblox_username in task['name']:
                                     continue
-                                await self.log_to_channel(f"**[Training] Sending DM to {discord_id} for task '{task.get('name','')}' (criteria {embed_num}, {label})**")
+                                await self.log_to_channel(f"**[Training] Sending DM to {discord_id} for task '{task.get('name','')}' (criteria {embed_num}, {label})**", department=dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title())
                                 # Main embed (24h) is not a reply, others reply to it
                                 reply_to = None
                                 key = f"{discord_id}:{task.get('id')}"
@@ -329,7 +340,8 @@ class Reminders(commands.Cog):
                                     msg = await self.send_training_embed(discord_id, embed_num, task, reply_to_message_id=reply_id)
                         if not found_user:
                             await self.log_to_channel(
-                                f"[Training][NoAssignee] Task '{task.get('name','')}' (due {datetime.utcfromtimestamp(due_date/1000).strftime('%Y-%m-%d %H:%M UTC')}) at interval '{label}' but no matching user in DB. Assignees: {assignees}"
+                                f"[Training][NoAssignee] Task '{task.get('name','')}' (due {datetime.utcfromtimestamp(due_date/1000).strftime('%Y-%m-%d %H:%M UTC')}) at interval '{label}' but no matching user in DB. Assignees: {assignees}",
+                                department=dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()
                             )
                         break  
 
