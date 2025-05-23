@@ -176,6 +176,86 @@ class Reminders(commands.Cog):
         except Exception:
             pass
 
+    async def send_training_embed(self, discord_id, embed_num, task, reply_to_message_id=None):
+        user = self.bot.get_user(discord_id)
+        if not user:
+            return None
+        task_name = task.get('name', '')
+        connection = self.get_db_connection()
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute("SELECT roblox_username, timezone FROM users WHERE discord_id = %s", (discord_id,))
+        row = cursor.fetchone()
+        connection.close()
+        roblox_username = row['roblox_username'] if row and row['roblox_username'] else ''
+        user_tz = pytz.timezone(row['timezone']) if row and row['timezone'] else pytz.UTC
+        if roblox_username and roblox_username in task_name:
+            type_str = 'Host'
+        else:
+            type_str = 'Co-Host'
+        due_date_ms = int(task.get('due_date', 0))
+        due_date_utc = datetime.utcfromtimestamp(due_date_ms / 1000)
+        due_date_local = due_date_utc.replace(tzinfo=pytz.UTC).astimezone(user_tz)
+        date_str = due_date_local.strftime('%A, %B %d, %Y at %I:%M %p %Z')
+        task_url = task.get('url')
+        if not task_url:
+            task_id = task.get('id')
+            if task_id:
+                task_url = f"https://app.clickup.com/t/{task_id}"
+            else:
+                task_url = "https://app.clickup.com/"
+
+        # Calculate delete_after in seconds
+        delete_after = None
+        if embed_num == 1:
+            delete_after = 24 * 60 * 60
+        elif embed_num == 2:
+            delete_after = 10 * 60 * 60
+        elif embed_num == 3:
+            delete_after = 2 * 60 * 60
+        elif embed_num == 4:
+            delete_after = 30 * 60
+        elif embed_num == 5:
+            delete_after = 15 * 60
+
+        if embed_num == 1:
+            embed = discord.Embed(title=f"Upcoming `{type_str}` in a day", description=f"You have an upcoming `{type_str}` occuring in 24 hours ({date_str}). Now would be a good time to ensure you are available.", color=discord.Color.blue())
+            view = discord.ui.View()
+            view.add_item(discord.ui.Button(label="ClickUp Task", url=task_url))
+        elif embed_num == 2:
+            embed = discord.Embed(title=f"Reminder:`{type_str}` in 10 hours", description=f"Your `{type_str}` training is in 10 hours ({date_str}). You should probably set an alarm for this training.", color=discord.Color.yellow())
+            view = discord.ui.View()
+            view.add_item(discord.ui.Button(label="ClickUp Task", url=task_url))
+        elif embed_num == 3:
+            embed = discord.Embed(title=f"Reminder: `{type_str}` in 2 hours", description=f"Your `{type_str}` is happening in 2 hours. You should double check you've set an alarm for this training if you intend to leave your computer.", color=discord.Color.orange())
+            view = discord.ui.View()
+            view.add_item(discord.ui.Button(label="ClickUp Task", url=task_url))
+        elif embed_num == 4:
+            embed = discord.Embed(title="Open Your Training", description=f"Your `{type_str}` is in 30 minutes! Remember to open the server.", color=discord.Color.red())
+            view = discord.ui.View()
+            view.add_item(discord.ui.Button(label="SCR Server", url="https://www.roblox.com/games/696347899/V2-2-Stepford-County-Railway"))
+        elif embed_num == 5:
+            embed = discord.Embed(title="Join Your Training", description=f"Your `{type_str}` is in 15 minutes. Join the server if you have not already!", color=discord.Color.red())
+            view = discord.ui.View()
+            view.add_item(discord.ui.Button(label="SCR Server", url="https://www.roblox.com/games/696347899/V2-2-Stepford-County-Railway"))
+        else:
+            embed = discord.Embed(title="Training Reminder", description="Unknown timing (but there is a training occuring in 24 hours that you are apart of)", color=discord.Color.light_grey())
+            view = None
+        try:
+            if view:
+                if reply_to_message_id:
+                    msg = await user.send(embed=embed, view=view, delete_after=delete_after, reference=discord.MessageReference(message_id=reply_to_message_id))
+                else:
+                    msg = await user.send(embed=embed, view=view, delete_after=delete_after)
+            else:
+                if reply_to_message_id:
+                    msg = await user.send(embed=embed, delete_after=delete_after, reference=discord.MessageReference(message_id=reply_to_message_id))
+                else:
+                    msg = await user.send(embed=embed, delete_after=delete_after)
+            return msg
+        except Exception as e:
+            print(f"[Reminders] Failed to DM user {discord_id}: {e}")
+            return None
+
     @tasks.loop(minutes=1)
     async def send_training_reminders(self):
         import requests
@@ -204,6 +284,8 @@ class Reminders(commands.Cog):
                 await self.log_to_channel(f"[Training] Error fetching tasks: {response.text}")
                 continue
             data = response.json()
+            # Track sent message IDs for each user-task combo
+            sent_message_ids = {}
             for task in data.get('tasks', []):
                 due_date = int(task.get('due_date', 0))
                 assignees = [a['email'] for a in task.get('assignees', [])]
@@ -235,71 +317,21 @@ class Reminders(commands.Cog):
                                 if embed_num == 5 and roblox_username in task['name']:
                                     continue
                                 await self.log_to_channel(f"[Training] Sending DM to {discord_id} for task '{task.get('name','')}' (criteria {embed_num}, {label})")
-                                await self.send_training_embed(discord_id, embed_num, task)
+                                # Main embed (24h) is not a reply, others reply to it
+                                reply_to = None
+                                key = f"{discord_id}:{task.get('id')}"
+                                if embed_num == 1:
+                                    msg = await self.send_training_embed(discord_id, embed_num, task)
+                                    if msg:
+                                        sent_message_ids[key] = msg.id
+                                else:
+                                    reply_id = sent_message_ids.get(key)
+                                    msg = await self.send_training_embed(discord_id, embed_num, task, reply_to_message_id=reply_id)
                         if not found_user:
                             await self.log_to_channel(
                                 f"[Training][NoAssignee] Task '{task.get('name','')}' (due {datetime.utcfromtimestamp(due_date/1000).strftime('%Y-%m-%d %H:%M UTC')}) at interval '{label}' but no matching user in DB. Assignees: {assignees}"
                             )
                         break  
-
-    async def send_training_embed(self, discord_id, embed_num, task):
-        user = self.bot.get_user(discord_id)
-        if not user:
-            return
-        task_name = task.get('name', '')
-        connection = self.get_db_connection()
-        cursor = connection.cursor(dictionary=True)
-        cursor.execute("SELECT roblox_username, timezone FROM users WHERE discord_id = %s", (discord_id,))
-        row = cursor.fetchone()
-        connection.close()
-        roblox_username = row['roblox_username'] if row and row['roblox_username'] else ''
-        user_tz = pytz.timezone(row['timezone']) if row and row['timezone'] else pytz.UTC
-        if roblox_username and roblox_username in task_name:
-            type_str = 'Host'
-        else:
-            type_str = 'Co-Host'
-        due_date_ms = int(task.get('due_date', 0))
-        due_date_utc = datetime.utcfromtimestamp(due_date_ms / 1000)
-        due_date_local = due_date_utc.replace(tzinfo=pytz.UTC).astimezone(user_tz)
-        date_str = due_date_local.strftime('%A, %B %d, %Y at %I:%M %p %Z')
-        task_url = task.get('url')
-        if not task_url:
-            task_id = task.get('id')
-            if task_id:
-                task_url = f"https://app.clickup.com/t/{task_id}"
-            else:
-                task_url = "https://app.clickup.com/"
-
-        if embed_num == 1:
-            embed = discord.Embed(title=f"Upcoming `{type_str}` in a day", description=f"You have an upcoming `{type_str}` occuring in 24 hours ({date_str}). Now would be a good time to ensure you are available.", color=discord.Color.blue())
-            view = discord.ui.View()
-            view.add_item(discord.ui.Button(label="ClickUp Task", url=task_url))
-        elif embed_num == 2:
-            embed = discord.Embed(title=f"Reminder:`{type_str}` in 10 hours", description=f"Your `{type_str}` training is in 10 hours ({date_str}). You should probably set an alarm for this training.", color=discord.Color.yellow())
-            view = discord.ui.View()
-            view.add_item(discord.ui.Button(label="ClickUp Task", url=task_url))
-        elif embed_num == 3:
-            embed = discord.Embed(title=f"Reminder: `{type_str}` in 2 hours", description=f"Your `{type_str}` is happening in 2 hours. You should double check you've set an alarm for this training if you intend to leave your computer.", color=discord.Color.orange())
-            view = discord.ui.View()
-            view.add_item(discord.ui.Button(label="ClickUp Task", url=task_url))
-        elif embed_num == 4:
-            embed = discord.Embed(title="Open Your Training", description=f"Your `{type_str}` is in 30 minutes! Remember to open the server.", color=discord.Color.red())
-            view = discord.ui.View()
-            view.add_item(discord.ui.Button(label="SCR Server", url="https://www.roblox.com/games/696347899/V2-2-Stepford-County-Railway"))
-        elif embed_num == 5:
-            embed = discord.Embed(title="Join Your Training", description=f"Your `{type_str}` is in 15 minutes. Join the server if you have not already!", color=discord.Color.red())
-            view = discord.ui.View()
-            view.add_item(discord.ui.Button(label="SCR Server", url="https://www.roblox.com/games/696347899/V2-2-Stepford-County-Railway"))
-        else:
-            embed = discord.Embed(title="Training Reminder", description="Unknown timing (but there is a training occuring in 24 hours that you are apart of)", color=discord.Color.light_grey())
-            view = None
-        try:
-            if view:
-                await user.send(embed=embed, view=view)
-            else:
-                await user.send(embed=embed)
-        except Exception:
-            pass
 
     @send_quota_reminders.before_loop
     async def before_quota_reminders(self):
