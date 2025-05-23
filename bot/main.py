@@ -149,11 +149,20 @@ async def on_message(message):
             await message.channel.send('You do not have permission to use this command.')
             return
         try:
-            _, space_name, task_id = content.split(maxsplit=2)
+            parts = content.split()
+            if len(parts) >= 4 and parts[2].lower() == 'department':
+                # e.g. >find Dispatching Department <taskID>
+                space_name = f"{parts[1]} Department"
+                task_id = parts[3]
+            else:
+                # e.g. >find Dispatching <taskID>
+                space_name = parts[1]
+                task_id = parts[2]
+                if not space_name.lower().endswith('department'):
+                    space_name = f"{space_name} Department"
         except Exception:
             await message.channel.send('Usage: >find [spaceName] [taskID]')
             return
-        # Get space ID from .env
         space_env_key = f'CLICKUP_SPACE_ID_{space_name.upper().replace(" ", "_")}'
         space_id = os.getenv(space_env_key)
         if not space_id:
