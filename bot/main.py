@@ -163,7 +163,7 @@ async def on_message(message):
         except Exception:
             await message.channel.send('Usage: >find [spaceName] [taskID]')
             return
-        space_env_key = f'CLICKUP_SPACE_ID_{space_name.upper().replace(" ", "_")}'
+        space_env_key = f'CLICKUP_LIST_ID_{space_name.upper().replace(" ", "_")}'
         space_id = os.getenv(space_env_key)
         if not space_id:
             await message.channel.send(f'No space ID found for {space_name}.')
