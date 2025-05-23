@@ -179,7 +179,6 @@ class Reminders(commands.Cog):
     @tasks.loop(minutes=1)
     async def send_training_reminders(self):
         import requests
-        from time import sleep
         now = datetime.now(pytz.UTC)
         unix_25h_away = int((now + timedelta(hours=25)).timestamp() * 1000)
         department_keys = [
