@@ -143,30 +143,15 @@ async def on_message(message):
         await bot.close()
         os._exit(0)
         return
-    # >find [spaceName] [taskID]
+    # >find [taskID]
     if content.startswith('>find '):
         if not is_owner:
             await message.channel.send('You do not have permission to use this command.')
             return
         try:
-            parts = content.split()
-            if len(parts) >= 4 and parts[2].lower() == 'department':
-                # e.g. >find Dispatching Department <taskID>
-                space_name = f"{parts[1]} Department"
-                task_id = parts[3]
-            else:
-                # e.g. >find Dispatching <taskID>
-                space_name = parts[1]
-                task_id = parts[2]
-                if not space_name.lower().endswith('department'):
-                    space_name = f"{space_name} Department"
+            _, task_id = content.split(maxsplit=1)
         except Exception:
-            await message.channel.send('Usage: >find [spaceName] [taskID]')
-            return
-        space_env_key = f'CLICKUP_LIST_ID_{space_name.upper().replace(" ", "_")}'
-        space_id = os.getenv(space_env_key)
-        if not space_id:
-            await message.channel.send(f'No space ID found for {space_name}.')
+            await message.channel.send('Usage: >find [taskID]')
             return
         # Fetch task from ClickUp API
         headers = {"Authorization": os.getenv('CLICKUP_API_TOKEN'), "accept": "application/json"}
@@ -176,10 +161,6 @@ async def on_message(message):
             await message.channel.send(f'Failed to fetch task: {response.text}')
             return
         task = response.json()
-        # Check if task is in the correct space
-        if str(task.get('space', {}).get('id')) != str(space_id):
-            await message.channel.send(f"Task not found in the specified space.")
-            return
         # Get user timezone from DB
         connection = get_db_connection()
         cursor = connection.cursor(dictionary=True)
@@ -187,6 +168,19 @@ async def on_message(message):
         row = cursor.fetchone()
         connection.close()
         user_tz = pytz.timezone(row['timezone']) if row and row['timezone'] else pytz.UTC
+        # Get space info
+        space = task.get('space', {})
+        space_name = space.get('name', 'Unknown')
+        # Department color emoji
+        emoji = ''
+        if 'driving' in space_name.lower():
+            emoji = '\U0001F534'  # Red
+        elif 'dispatch' in space_name.lower():
+            emoji = '\U0001F7E0'  # Orange
+        elif 'guard' in space_name.lower():
+            emoji = '\U0001F7E1'  # Yellow
+        elif 'signal' in space_name.lower():
+            emoji = '\U0001F7E2'  # Green
         # Build embed
         name = task.get('name', 'Unknown')
         desc = task.get('description', 'No description.')
@@ -200,6 +194,7 @@ async def on_message(message):
         else:
             due_str = 'None'
         embed = discord.Embed(title=f"Task: {name}", description=desc, color=discord.Color.blue())
+        embed.add_field(name="Space", value=f"{emoji} {space_name}", inline=False)
         embed.add_field(name="Tags", value=tags, inline=False)
         embed.add_field(name="Status", value=status, inline=True)
         embed.add_field(name="Assignees", value=assignees, inline=True)
