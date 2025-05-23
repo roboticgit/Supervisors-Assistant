@@ -316,7 +316,7 @@ class Reminders(commands.Cog):
                                     continue
                                 if embed_num == 5 and roblox_username in task['name']:
                                     continue
-                                await self.log_to_channel(f"[Training] Sending DM to {discord_id} for task '{task.get('name','')}' (criteria {embed_num}, {label})")
+                                await self.log_to_channel(f"**[Training] Sending DM to {discord_id} for task '{task.get('name','')}' (criteria {embed_num}, {label})**")
                                 # Main embed (24h) is not a reply, others reply to it
                                 reply_to = None
                                 key = f"{discord_id}:{task.get('id')}"
