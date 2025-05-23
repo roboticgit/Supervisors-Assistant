@@ -348,9 +348,8 @@ class Reminders(commands.Cog):
     @send_quota_reminders.before_loop
     async def before_quota_reminders(self):
         now = datetime.now(pytz.UTC)
-        next_run = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        if now >= next_run:
-            next_run += timedelta(days=1)
+        # Calculate next top-of-the-hour
+        next_run = now.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
         print(f"[Reminders] send_quota_reminders will start at {next_run.strftime('%Y-%m-%d %H:%M:%S UTC')}")
         await discord.utils.sleep_until(next_run)
         print(f"[Reminders] send_quota_reminders actually started at {datetime.now(pytz.UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}")
@@ -358,9 +357,8 @@ class Reminders(commands.Cog):
     @send_training_reminders.before_loop
     async def before_training_reminders(self):
         now = datetime.now(pytz.UTC)
-        next_run = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        if now >= next_run:
-            next_run += timedelta(days=1)
+        # Calculate next top-of-the-hour
+        next_run = now.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
         print(f"[Reminders] send_training_reminders will start at {next_run.strftime('%Y-%m-%d %H:%M:%S UTC')}")
         await discord.utils.sleep_until(next_run)
         print(f"[Reminders] send_training_reminders actually started at {datetime.now(pytz.UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}")
