@@ -181,17 +181,17 @@ class Reminders(commands.Cog):
         days_in_month = (today.replace(month=today.month % 12 + 1, day=1) - timedelta(days=1)).day
         days_left = days_in_month - day_of_month
         if day_of_month == 7:
-            embed = discord.Embed(title=f"Bi-Weekly Reminder: A Week Left ({department})", description="You are receiving this reminder because you have not completed at least one Host/CoHost within the initial 2 weeks of the month!\n- Note that these do NOT account for LOAs\n\nYou can disable these in `/settings`", color=discord.Color.yellow())
+            embed = discord.Embed(title=f"Bi-Weekly Reminder: A Week Left ({department})", description="You are receiving this reminder because you have not completed at least one Host/CoHost within the initial 2 weeks of the month!\n\n- Run `/check` to get more specifics on your quota situation\n- Note that these do NOT account for LOAs\n\nYou can disable these reminders in `/settings`", color=discord.Color.yellow())
         elif day_of_month == 11:
-            embed = discord.Embed(title=f"Bi-Weekly Reminder: 3 Days left ({department})", description="You are receiving this reminder because you have not completed at least one Host/CoHost within the initial 2 weeks of the month!\n- Note that these do NOT account for LOAs\n\nYou can disable these in `/settings`", color=discord.Color.orange())
+            embed = discord.Embed(title=f"Bi-Weekly Reminder: 3 Days left ({department})", description="You are receiving this reminder because you have not completed at least one Host/CoHost within the initial 2 weeks of the month!\n\n- Run `/check` to get more specifics on your quota situation\n- Note that these do NOT account for LOAs\n\nYou can disable these reminders in `/settings`", color=discord.Color.orange())
         elif days_left == 7:
             host_required = 3 if department == "Driving Department" else 2
-            embed = discord.Embed(title=f"Quota Reminder: A Week Left ({department})", description=f"You are receiving this reminder because you have not completed at least {host_required} hosts and 8 total Hosts/CoHosts yet!\n- Note that these do NOT account for LOAs\n\nYou can disable these in `/settings`", color=discord.Color.yellow())
+            embed = discord.Embed(title=f"Quota Reminder: A Week Left ({department})", description=f"You are receiving this reminder because you have not completed at least {host_required} hosts and 8 total Hosts/CoHosts yet!\n\n- Run `/check` to get more specifics on your quota situation\n- Note that these do NOT account for LOAs\n\nYou can disable these reminders in `/settings`", color=discord.Color.yellow())
         elif days_left == 3:
             host_required = 3 if department == "Driving Department" else 2
-            embed = discord.Embed(title=f"Quota Reminder: 3 Days Left ({department})", description=f"You are receiving this reminder because you have not completed at least {host_required} hosts and 8 total Hosts/CoHosts yet!\n- Note that these do NOT account for LOAs\n\nYou can disable these in `/settings`", color=discord.Color.red())
+            embed = discord.Embed(title=f"Quota Reminder: 3 Days Left ({department})", description=f"You are receiving this reminder because you have not completed at least {host_required} hosts and 8 total Hosts/CoHosts yet!\n\n- Run `/check` to get more specifics on your quota situation\n- Note that these do NOT account for LOAs\n\nYou can disable these reminders in `/settings`", color=discord.Color.red())
         else:
-            embed = discord.Embed(title=f"Quota Reminder ({department})", description="How did we get here? The bot has no idea why it's sending you this.", color=discord.Color.blue())
+            embed = discord.Embed(title=f"Quota Reminder ({department})", description="How did we get here? The bot has no idea why it's sending you this, but you should probably run `/check` to see whats up.", color=discord.Color.blue())
         try:
             await user.send(embed=embed)
             await self.log_to_channel(f"🗓️ DM sent to user {discord_id} for {department}")
