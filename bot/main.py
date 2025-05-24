@@ -153,9 +153,9 @@ async def on_message(message):
         except Exception:
             await message.channel.send('Usage: >find [taskID]')
             return
-        # Fetch task from ClickUp API
+        # Fetch task from ClickUp API (with markdown)
         headers = {"Authorization": os.getenv('CLICKUP_API_TOKEN'), "accept": "application/json"}
-        url = f"https://api.clickup.com/api/v2/task/{task_id}"
+        url = f"https://api.clickup.com/api/v2/task/{task_id}?include_markdown_description=true"
         response = requests.get(url, headers=headers)
         if response.status_code != 200:
             await message.channel.send(f'Failed to fetch task: {response.text}')
@@ -184,6 +184,7 @@ async def on_message(message):
         # Build embed
         name = task.get('name', 'Unknown')
         desc = task.get('description', 'No description.')
+        markdown_desc = task.get('markdown_description', desc)
         tags = ', '.join([t['name'] for t in task.get('tags', [])]) or 'None'
         status = task.get('status', {}).get('status', 'Unknown')
         assignees = ', '.join([a.get('username') or a.get('email') or str(a.get('id')) for a in task.get('assignees', [])]) or 'None'
@@ -193,12 +194,60 @@ async def on_message(message):
             due_str = due_dt.strftime('%A, %B %d, %Y at %I:%M %p %Z')
         else:
             due_str = 'None'
+        # Created date
+        created_date = task.get('date_created')
+        if created_date:
+            created_dt = datetime.utcfromtimestamp(int(created_date) / 1000).replace(tzinfo=pytz.UTC).astimezone(user_tz)
+            created_str = created_dt.strftime('%A, %B %d, %Y at %I:%M %p %Z')
+        else:
+            created_str = 'Unknown'
+        # Comments & activity (fetch comments)
+        comments_url = f"https://api.clickup.com/api/v2/task/{task_id}/comment"
+        comments_resp = requests.get(comments_url, headers=headers)
+        comments = []
+        if comments_resp.status_code == 200:
+            comments_data = comments_resp.json()
+            for c in comments_data.get('comments', []):
+                author = c.get('user', {}).get('username', 'Unknown')
+                text = c.get('comment_text', '')
+                created = c.get('date')
+                if created:
+                    created_dt = datetime.utcfromtimestamp(int(created) / 1000).replace(tzinfo=pytz.UTC).astimezone(user_tz)
+                    created_str_c = created_dt.strftime('%Y-%m-%d %H:%M')
+                else:
+                    created_str_c = 'Unknown'
+                comments.append(f"**{author}** ({created_str_c}): {text}")
+        # History & events (fetch task history)
+        history_url = f"https://api.clickup.com/api/v2/task/{task_id}/history"
+        history_resp = requests.get(history_url, headers=headers)
+        events = []
+        if history_resp.status_code == 200:
+            history_data = history_resp.json()
+            for e in history_data.get('history', []):
+                event_type = e.get('type', 'Unknown')
+                user = e.get('user', {}).get('username', 'Unknown')
+                date = e.get('date')
+                if date:
+                    event_dt = datetime.utcfromtimestamp(int(date) / 1000).replace(tzinfo=pytz.UTC).astimezone(user_tz)
+                    event_str = event_dt.strftime('%Y-%m-%d %H:%M')
+                else:
+                    event_str = 'Unknown'
+                details = e.get('field', '')
+                value = e.get('after', '')
+                events.append(f"**{user}** [{event_type}] ({event_str}): {details} {value}")
+        # Build embed
         embed = discord.Embed(title=f"Task: {name}", description=desc, color=discord.Color.blue())
         embed.add_field(name="Space", value=f"{emoji} {space_name}", inline=False)
         embed.add_field(name="Tags", value=tags, inline=False)
         embed.add_field(name="Status", value=status, inline=True)
         embed.add_field(name="Assignees", value=assignees, inline=True)
         embed.add_field(name="Due Date", value=due_str, inline=False)
+        embed.add_field(name="Created", value=created_str, inline=False)
+        if comments:
+            embed.add_field(name="Comments", value='\n'.join(comments), inline=False)
+        if events:
+            embed.add_field(name="History / Events", value='\n'.join(events[:10]), inline=False)
+        embed.add_field(name="Markdown Description", value=f"```markdown\n{markdown_desc[:1900]}\n```", inline=False)
         await message.channel.send(embed=embed)
         return
     await bot.process_commands(message)
