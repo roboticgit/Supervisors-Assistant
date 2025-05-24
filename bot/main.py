@@ -244,17 +244,17 @@ async def on_message(message):
                 events.append(f"**{user}** [{event_type}] ({event_str}): {details} {value}")
         # Build embed
         embed = discord.Embed(title=name, color=discord.Color.blue())
-        embed.add_field(name="Space", value=f"{emoji} {space_name}", inline=False)
-        embed.add_field(name="Tags", value=tags, inline=False)
+        embed.add_field(name="Space", value=f"{emoji} {space_name}", inline=True)
+        embed.add_field(name="Tags", value=tags, inline=True)
         embed.add_field(name="Status", value=status, inline=True)
         embed.add_field(name="Assignees", value=assignees, inline=True)
-        embed.add_field(name="Due Date", value=due_str, inline=False)
-        embed.add_field(name="Created", value=created_str, inline=False)
+        embed.add_field(name="Due Date", value=due_str, inline=True)
+        embed.add_field(name="Created", value=created_str, inline=True)
         if comments:
-            embed.add_field(name="Comments", value='\n'.join(comments), inline=False)
+            embed.add_field(name="Comments", value='\n'.join(comments), inline=True)
         if events:
-            embed.add_field(name="History / Events", value='\n'.join(events[:10]), inline=False)
-        embed.add_field(name="Markdown Description", value=f"```markdown\n{markdown_desc[:1900]}\n```", inline=False)
+            embed.add_field(name="History / Events", value='\n'.join(events[:10]), inline=True)
+        embed.add_field(name="Description", value=f"```markdown\n{markdown_desc[:1900]}\n```", inline=False)
         await message.channel.send(embed=embed)
         return
     await bot.process_commands(message)
