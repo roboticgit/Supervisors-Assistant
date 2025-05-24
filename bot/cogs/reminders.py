@@ -170,7 +170,12 @@ class Reminders(commands.Cog):
     async def send_reminder(self, discord_id, department, timing):
         user = self.bot.get_user(discord_id)
         if not user:
-            return
+            try:
+                user = await self.bot.fetch_user(discord_id)
+                await self.log_to_channel(f"[Quota] fetch_user succeeded for {discord_id}")
+            except Exception as e:
+                await self.log_to_channel(f"[Quota] Could not fetch user {discord_id}: {e}")
+                return
         today = datetime.now(pytz.UTC)
         day_of_month = today.day
         days_in_month = (today.replace(month=today.month % 12 + 1, day=1) - timedelta(days=1)).day
@@ -189,8 +194,9 @@ class Reminders(commands.Cog):
             embed = discord.Embed(title=f"Quota Reminder ({department})", description="How did we get here? The bot has no idea why it's sending you this.", color=discord.Color.blue())
         try:
             await user.send(embed=embed)
-        except Exception:
-            pass
+            await self.log_to_channel(f"[Quota] DM sent to user {discord_id} for {department}")
+        except Exception as e:
+            await self.log_to_channel(f"[Quota] Failed to DM user {discord_id} for {department}: {e}")
 
     async def send_training_embed(self, discord_id, embed_num, task, reply_to_message_id=None):
         user = self.bot.get_user(discord_id)
@@ -297,7 +303,7 @@ class Reminders(commands.Cog):
             headers = {"Authorization": os.getenv('CLICKUP_API_TOKEN'), "accept": "application/json"}
             response = requests.get(url, headers=headers)
             if response.status_code != 200:
-                await self.log_to_channel(f"\U00002699 [Error] {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()} | Could not fetch scheduled tasks: {response.text}")
+                await self.log_to_channel(f"⚙️ [Error] {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()} | Could not fetch scheduled tasks: {response.text}")
                 continue
             data = response.json()
             sent_message_ids = {}
@@ -322,22 +328,22 @@ class Reminders(commands.Cog):
                                 discord_id = user['discord_id']
                                 roblox_username = user['roblox_username']
                                 if any(user.get(field) == 'Not set' for field in ['discord_id', 'roblox_username', 'clickup_email', 'reminder_preferences']):
-                                    await self.log_to_channel(f"\U00002699 [Skip] User {discord_id} | {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()} | Missing required user data. Skipping.")
+                                    await self.log_to_channel(f"⚙️ [Skip] User {discord_id} | {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()} | Missing required user data. Skipping.")
                                     continue
                                 if 'training' not in user.get('reminder_preferences', '').lower():
-                                    await self.log_to_channel(f"\U00002699 [Skip] User {discord_id} | {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()} | 'training' not in reminder preferences. Skipping.")
+                                    await self.log_to_channel(f"⚙️ [Skip] User {discord_id} | {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()} | 'training' not in reminder preferences. Skipping.")
                                     continue
                                 # Host/CoHost logic
                                 is_host = roblox_username in task['name']
                                 if embed_num == 4 and not is_host:
-                                    await self.log_to_channel(f"\U00002699 [Skip] User {discord_id} | {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()} | 30m reminder only for Host. Skipping.")
+                                    await self.log_to_channel(f"⚙️ [Skip] User {discord_id} | {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()} | 30m reminder only for Host. Skipping.")
                                     continue
                                 if embed_num == 5 and is_host:
-                                    await self.log_to_channel(f"\U00002699 [Skip] User {discord_id} | {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()} | 15m reminder only for Co-Host. Skipping.")
+                                    await self.log_to_channel(f"⚙️ [Skip] User {discord_id} | {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()} | 15m reminder only for Co-Host. Skipping.")
                                     continue
                                 # Log sending
                                 due_str = datetime.utcfromtimestamp(due_date/1000).strftime('%Y-%m-%d %H:%M UTC')
-                                await self.log_to_channel(f"\U00002699 [Send] User {discord_id} | {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()} | Task '{task.get('name','')}' | Due: {due_str} | Reminder: {label} | Type: {'Host' if is_host else 'Co-Host'} | DM will be sent.")
+                                await self.log_to_channel(f"⚙️ [Send] User {discord_id} | {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()} | Task '{task.get('name','')}' | Due: {due_str} | Reminder: {label} | Type: {'Host' if is_host else 'Co-Host'} | DM will be sent.")
                                 # Main embed (24h) is not a reply, others reply to it
                                 reply_to = None
                                 key = f"{discord_id}:{task.get('id')}"
@@ -351,7 +357,7 @@ class Reminders(commands.Cog):
                         if not found_user:
                             due_str = datetime.utcfromtimestamp(due_date/1000).strftime('%Y-%m-%d %H:%M UTC')
                             await self.log_to_channel(
-                                f"\U00002699 [NoAssignee] {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()} | Task '{task.get('name','')}' | Due: {due_str} | Reminder: {label} | No matching user in DB. Assignees: {assignees}",
+                                f"⚙️ [NoAssignee] {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()} | Task '{task.get('name','')}' | Due: {due_str} | Reminder: {label} | No matching user in DB. Assignees: {assignees}",
                                 department=dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()
                             )
                         break
