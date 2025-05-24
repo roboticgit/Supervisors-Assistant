@@ -126,14 +126,15 @@ class Reminders(commands.Cog):
                         )
                         import requests
                         response = requests.get(url_with_params, headers=headers)
-                        await self.log_to_channel(f"[Quota] Fetched ClickUp tasks for {department} (archived={archived_value}, page={page}, status={response.status_code})")
+                        # Logging for each task fetch and result
+                        await self.log_to_channel(f"\U0001F5D3 [Fetch] {department} | archived={archived_value} | page={page} | status={response.status_code}")
                         if response.status_code != 200:
-                            await self.log_to_channel(f"[Quota] Error fetching tasks: {response.text}")
+                            await self.log_to_channel(f"\U0001F5D3 [Error] {department} | Could not fetch tasks: {response.text}")
                             break
                         data = response.json()
                         tasks = data.get("tasks", [])
                         if not tasks:
-                            await self.log_to_channel(f"[Quota] No tasks found for {department} (archived={archived_value}, page={page})")
+                            await self.log_to_channel(f"\U0001F5D3 [NoTasks] {department} | archived={archived_value} | page={page} | No tasks found.")
                             break
                         for task in tasks:
                             assignees = [assignee['email'] for assignee in task.get('assignees', [])]
@@ -141,26 +142,30 @@ class Reminders(commands.Cog):
                                 due_date = task.get('due_date')
                                 if due_date and int(due_date) >= first_of_month_unix_ms:
                                     concluded_total += 1
+                                    # Log if username is in task name (Host/CoHost credit)
                                     if roblox_username in task['name']:
                                         concluded_username += 1
+                                        await self.log_to_channel(f"\U0001F5D3 [HostMatch] User {discord_id} | {department} | Task '{task['name']}' | Host/CoHost credit given (username found in task name)")
+                                    else:
+                                        await self.log_to_channel(f"\U0001F5D3 [CoHostOnly] User {discord_id} | {department} | Task '{task['name']}' | CoHost credit only (username NOT found in task name)")
                         if data.get("last_page", False):
                             break
                         page += 1
-                await self.log_to_channel(f"[Quota] User {discord_id} ({department}): concluded_total={concluded_total}, concluded_username={concluded_username}")
+                await self.log_to_channel(f"\U0001F5D3 [Summary] User {discord_id} | {department} | Total Host/CoHost: {concluded_total} | Host: {concluded_username}")
                 host_required = 3 if department == "Driving Department" else 2
                 found_to_send = False
                 if day_of_month in [7, 11]:
                     if concluded_total < 1:
                         found_to_send = True
-                        await self.log_to_channel(f"[Quota] Criteria met for {discord_id} ({department}) on day {day_of_month}: concluded_total={concluded_total}")
+                        await self.log_to_channel(f"\U0001F5D3 [Trigger] User {discord_id} | {department} | Day {day_of_month}: <1 Host/CoHost completed. Sending reminder.")
                         await self.send_reminder(discord_id, department, day_of_month)
                 elif days_left in [7, 3]:
                     if concluded_total < 8 or concluded_username < host_required:
                         found_to_send = True
-                        await self.log_to_channel(f"[Quota] Criteria met for {discord_id} ({department}) with {days_left} days left: concluded_total={concluded_total}, concluded_username={concluded_username}, host_required={host_required}")
+                        await self.log_to_channel(f"\U0001F5D3 [Trigger] User {discord_id} | {department} | {days_left} days left: <8 Host/CoHost or <{host_required} Host completed. Sending reminder.")
                         await self.send_reminder(discord_id, department, days_left)
                 if found_to_send:
-                    await self.log_to_channel(f"[Quota] Would DM {discord_id} for {department} (criteria met)")
+                    await self.log_to_channel(f"\U0001F5D3 [DM] Reminder sent to user {discord_id} for {department} (criteria met)")
 
     async def send_reminder(self, discord_id, department, timing):
         user = self.bot.get_user(discord_id)
@@ -292,10 +297,9 @@ class Reminders(commands.Cog):
             headers = {"Authorization": os.getenv('CLICKUP_API_TOKEN'), "accept": "application/json"}
             response = requests.get(url, headers=headers)
             if response.status_code != 200:
-                await self.log_to_channel(f"[Training] Error fetching tasks: {response.text}")
+                await self.log_to_channel(f"\U00002699 [Error] {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()} | Could not fetch scheduled tasks: {response.text}")
                 continue
             data = response.json()
-            # Track sent message IDs for each user-task combo
             sent_message_ids = {}
             for task in data.get('tasks', []):
                 due_date = int(task.get('due_date', 0))
@@ -318,16 +322,22 @@ class Reminders(commands.Cog):
                                 discord_id = user['discord_id']
                                 roblox_username = user['roblox_username']
                                 if any(user.get(field) == 'Not set' for field in ['discord_id', 'roblox_username', 'clickup_email', 'reminder_preferences']):
-                                    await self.log_to_channel(f"[Training] Skipping user {user.get('discord_id')} due to 'Not set' field.")
+                                    await self.log_to_channel(f"\U00002699 [Skip] User {discord_id} | {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()} | Missing required user data. Skipping.")
                                     continue
                                 if 'training' not in user.get('reminder_preferences', '').lower():
-                                    await self.log_to_channel(f"[Training] Skipping user {user.get('discord_id')} (no 'training' in preferences)")
+                                    await self.log_to_channel(f"\U00002699 [Skip] User {discord_id} | {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()} | 'training' not in reminder preferences. Skipping.")
                                     continue
-                                if embed_num == 4 and roblox_username not in task['name']:
+                                # Host/CoHost logic
+                                is_host = roblox_username in task['name']
+                                if embed_num == 4 and not is_host:
+                                    await self.log_to_channel(f"\U00002699 [Skip] User {discord_id} | {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()} | 30m reminder only for Host. Skipping.")
                                     continue
-                                if embed_num == 5 and roblox_username in task['name']:
+                                if embed_num == 5 and is_host:
+                                    await self.log_to_channel(f"\U00002699 [Skip] User {discord_id} | {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()} | 15m reminder only for Co-Host. Skipping.")
                                     continue
-                                await self.log_to_channel(f"**[Training] Sending DM to {discord_id} for task '{task.get('name','')}' (criteria {embed_num}, {label})**", department=dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title())
+                                # Log sending
+                                due_str = datetime.utcfromtimestamp(due_date/1000).strftime('%Y-%m-%d %H:%M UTC')
+                                await self.log_to_channel(f"\U00002699 [Send] User {discord_id} | {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()} | Task '{task.get('name','')}' | Due: {due_str} | Reminder: {label} | Type: {'Host' if is_host else 'Co-Host'} | DM will be sent.")
                                 # Main embed (24h) is not a reply, others reply to it
                                 reply_to = None
                                 key = f"{discord_id}:{task.get('id')}"
@@ -339,12 +349,12 @@ class Reminders(commands.Cog):
                                     reply_id = sent_message_ids.get(key)
                                     msg = await self.send_training_embed(discord_id, embed_num, task, reply_to_message_id=reply_id)
                         if not found_user:
+                            due_str = datetime.utcfromtimestamp(due_date/1000).strftime('%Y-%m-%d %H:%M UTC')
                             await self.log_to_channel(
-                                f"[Training][NoAssignee] Task '{task.get('name','')}' (due {datetime.utcfromtimestamp(due_date/1000).strftime('%Y-%m-%d %H:%M UTC')}) at interval '{label}' but no matching user in DB. Assignees: {assignees}",
+                                f"\U00002699 [NoAssignee] {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()} | Task '{task.get('name','')}' | Due: {due_str} | Reminder: {label} | No matching user in DB. Assignees: {assignees}",
                                 department=dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()
                             )
-                        break  
-
+                        break
     @send_quota_reminders.before_loop
     async def before_quota_reminders(self):
         now = datetime.now(pytz.UTC)
