@@ -291,8 +291,8 @@ class Clickup(commands.Cog):
 
     @app_commands.command(name="create", description="Request a new training task in ClickUp.")
     @app_commands.describe(
-        date="Date in YYYY-MM-DD format (e.g. 2025-05-16)",
-        time="Time in 24-hour HH:MM format (e.g. 14:30 for 2:30 PM)",
+        date="Date in YYYY-MM-DD format (e.g. 2025-05-16) in **YOUR TIMEZONE**",
+        time="Time in 24-hour HH:MM format (e.g. 14:30 for 2:30 PM) in **YOUR TIMEZONE**",
         department="Defaults to your primary department"
     )
     async def create(self, interaction: discord.Interaction, date: str, time: str, department: str = None):

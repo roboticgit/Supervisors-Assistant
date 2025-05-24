@@ -169,7 +169,8 @@ async def on_message(message):
         connection.close()
         user_tz = pytz.timezone(row['timezone']) if row and row['timezone'] else pytz.UTC
         # Get space info
-        space_id = str(task.get('space', 'Unknown'))
+        space_obj = task.get('space', {})
+        space_id = str(space_obj.get('id', 'Unknown')) if isinstance(space_obj, dict) else str(space_obj)
         # Reverse map space_id to department name using .env CLICKUP_LIST_ID_* variables
         space_name = space_id
         for key, value in os.environ.items():
