@@ -62,29 +62,29 @@ class Reminders(commands.Cog):
 
     LOG_CHANNEL_ID = 1374924175000469625  
 
-    @tasks.loop(hours=24)
+    @tasks.loop(minutes=15)
     async def send_quota_reminders(self):
         today = datetime.now(pytz.UTC)
         day_of_month = today.day
         days_in_month = (today.replace(month=today.month % 12 + 1, day=1) - timedelta(days=1)).day
         days_left = days_in_month - day_of_month
-        await self.log_to_channel(f"[Quota] Loop start: day_of_month={day_of_month}, days_left={days_left}")
+        await self.log_to_channel(f"🗓️ Loop start: day_of_month={day_of_month}, days_left={days_left}")
         if day_of_month not in [7, 11] and days_left not in [7, 3]:
-            await self.log_to_channel(f"[Quota] Skipping: Not a reminder day.")
+            await self.log_to_channel(f"🗓️ Skipping: Not a reminder day.")
             return
         connection = self.get_db_connection()
         cursor = connection.cursor(dictionary=True)
         cursor.execute("SELECT discord_id, primary_department, secondary_department, roblox_username, clickup_email, timezone, reminder_preferences FROM users")
         users = cursor.fetchall()
         connection.close()
-        await self.log_to_channel(f"[Quota] Fetching quota info for {len(users)} users on {datetime.now(pytz.UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}")
+        await self.log_to_channel(f"🗓️ Fetching quota info for {len(users)} users on {datetime.now(pytz.UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}")
         for user in users:
             if any(user.get(field) in (None, 'Not set') for field in [
                 'primary_department', 'roblox_username', 'clickup_email', 'timezone', 'reminder_preferences']):
-                await self.log_to_channel(f"[Quota] Skipping user {user.get('discord_id')} due to missing data.")
+                await self.log_to_channel(f"🗓️ Skipping user {user.get('discord_id')} due to missing data.")
                 continue
             if 'quota' not in user.get('reminder_preferences', '').lower():
-                await self.log_to_channel(f"[Quota] Skipping user {user.get('discord_id')} (no 'quota' in preferences)")
+                await self.log_to_channel(f"🗓️ Skipping user {user.get('discord_id')} (no 'quota' in preferences)")
                 continue
             discord_id = user['discord_id']
             departments = [user['primary_department']]
@@ -93,7 +93,7 @@ class Reminders(commands.Cog):
             for department in departments:
                 pref = await self.get_user_reminder_pref(discord_id)
                 if not pref or 'quota' not in pref.lower():
-                    await self.log_to_channel(f"[Quota] Skipping user {discord_id} for {department} (no 'quota' in pref)")
+                    await self.log_to_channel(f"🗓️ Skipping user {discord_id} for {department} (no 'quota' in pref)")
                     continue
                 headers = {
                     "Authorization": os.getenv('CLICKUP_API_TOKEN'),
@@ -102,7 +102,7 @@ class Reminders(commands.Cog):
                 list_id_env_key = f"CLICKUP_LIST_ID_{department.upper().replace(' ', '_')}"
                 list_id = os.getenv(list_id_env_key)
                 if not list_id:
-                    await self.log_to_channel(f"[Quota] No list_id for department {department}")
+                    await self.log_to_channel(f"🗓️ No list_id for department {department}")
                     continue
                 from datetime import timezone as dt_timezone
                 now = datetime.now(dt_timezone.utc)
@@ -172,9 +172,9 @@ class Reminders(commands.Cog):
         if not user:
             try:
                 user = await self.bot.fetch_user(discord_id)
-                await self.log_to_channel(f"[Quota] fetch_user succeeded for {discord_id}")
+                await self.log_to_channel(f"🗓️ fetch_user succeeded for {discord_id}")
             except Exception as e:
-                await self.log_to_channel(f"[Quota] Could not fetch user {discord_id}: {e}")
+                await self.log_to_channel(f"🗓️ Could not fetch user {discord_id}: {e}")
                 return
         today = datetime.now(pytz.UTC)
         day_of_month = today.day
@@ -194,9 +194,9 @@ class Reminders(commands.Cog):
             embed = discord.Embed(title=f"Quota Reminder ({department})", description="How did we get here? The bot has no idea why it's sending you this.", color=discord.Color.blue())
         try:
             await user.send(embed=embed)
-            await self.log_to_channel(f"[Quota] DM sent to user {discord_id} for {department}")
+            await self.log_to_channel(f"🗓️ DM sent to user {discord_id} for {department}")
         except Exception as e:
-            await self.log_to_channel(f"[Quota] Failed to DM user {discord_id} for {department}: {e}")
+            await self.log_to_channel(f"🗓️ Failed to DM user {discord_id} for {department}: {e}")
 
     async def send_training_embed(self, discord_id, embed_num, task, reply_to_message_id=None):
         user = self.bot.get_user(discord_id)
@@ -278,7 +278,7 @@ class Reminders(commands.Cog):
             print(f"[Reminders] Failed to DM user {discord_id}: {e}")
             return None
 
-    @tasks.loop(minutes=1)
+    @tasks.loop(minutes=15)
     async def send_training_reminders(self):
         import requests
         now = datetime.now(pytz.UTC)
