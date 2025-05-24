@@ -169,8 +169,7 @@ async def on_message(message):
         connection.close()
         user_tz = pytz.timezone(row['timezone']) if row and row['timezone'] else pytz.UTC
         # Get space info
-        space = task.get('space', {})
-        space_name = space.get('name', 'Unknown')
+        space_name = task.get('list', {}).get('space', {}).get('name', 'Unknown')
         # Department color emoji
         emoji = ''
         if 'driving' in space_name.lower():
@@ -236,7 +235,7 @@ async def on_message(message):
                 value = e.get('after', '')
                 events.append(f"**{user}** [{event_type}] ({event_str}): {details} {value}")
         # Build embed
-        embed = discord.Embed(title=f"Task: {name}", description=desc, color=discord.Color.blue())
+        embed = discord.Embed(title=f"Task: {name}", color=discord.Color.blue())
         embed.add_field(name="Space", value=f"{emoji} {space_name}", inline=False)
         embed.add_field(name="Tags", value=tags, inline=False)
         embed.add_field(name="Status", value=status, inline=True)
