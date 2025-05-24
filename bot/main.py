@@ -169,7 +169,15 @@ async def on_message(message):
         connection.close()
         user_tz = pytz.timezone(row['timezone']) if row and row['timezone'] else pytz.UTC
         # Get space info
-        space_name = task.get('list', {}).get('space', {}).get('name', 'Unknown')
+        space_id = str(task.get('space', 'Unknown'))
+        # Reverse map space_id to department name using .env CLICKUP_LIST_ID_* variables
+        space_name = space_id
+        for key, value in os.environ.items():
+            if key.startswith('CLICKUP_LIST_ID_') and value.strip() == space_id:
+                # Convert env var key to department name
+                dept_name = key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()
+                space_name = dept_name
+                break
         # Department color emoji
         emoji = ''
         if 'driving' in space_name.lower():
@@ -235,7 +243,7 @@ async def on_message(message):
                 value = e.get('after', '')
                 events.append(f"**{user}** [{event_type}] ({event_str}): {details} {value}")
         # Build embed
-        embed = discord.Embed(title=f"Task: {name}", color=discord.Color.blue())
+        embed = discord.Embed(title=name, color=discord.Color.blue())
         embed.add_field(name="Space", value=f"{emoji} {space_name}", inline=False)
         embed.add_field(name="Tags", value=tags, inline=False)
         embed.add_field(name="Status", value=status, inline=True)
