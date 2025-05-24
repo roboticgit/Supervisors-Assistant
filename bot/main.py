@@ -171,14 +171,14 @@ async def on_message(message):
         # Get space info
         space_obj = task.get('space', {})
         space_id = str(space_obj.get('id', 'Unknown')) if isinstance(space_obj, dict) else str(space_obj)
-        # Reverse map space_id to department name using .env CLICKUP_LIST_ID_* variables
-        space_name = space_id
-        for key, value in os.environ.items():
-            if key.startswith('CLICKUP_LIST_ID_') and value.strip() == space_id:
-                # Convert env var key to department name
-                dept_name = key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()
-                space_name = dept_name
-                break
+        # Map space_id to department using .env direct mapping (only for >find)
+        space_map = {
+            '90151850368': 'DRIVING',
+            '90151887568': 'DISPATCHING',
+            '90151887602': 'GUARDING',
+            '90151887660': 'SIGNALLING',
+        }
+        space_name = space_map.get(space_id, space_id)
         # Department color emoji
         emoji = ''
         if 'driving' in space_name.lower():
@@ -243,8 +243,22 @@ async def on_message(message):
                 details = e.get('field', '')
                 value = e.get('after', '')
                 events.append(f"**{user}** [{event_type}] ({event_str}): {details} {value}")
+        # Build embed color based on status
+        status_lower = status.lower() if status else ''
+        if status_lower == 'request':
+            embed_color = discord.Color.light_grey()
+        elif status_lower == 'pending staff':
+            embed_color = discord.Color.from_rgb(235, 21, 122)  # Hot pink
+        elif status_lower == 'scheduled':
+            embed_color = discord.Color.green()
+        elif status_lower == 'concluded':
+            embed_color = discord.Color.blue()
+        elif status_lower == 'declined':
+            embed_color = discord.Color.red()
+        else:
+            embed_color = discord.Color.dark_grey()
         # Build embed
-        embed = discord.Embed(title=name, color=discord.Color.blue())
+        embed = discord.Embed(title=name, color=embed_color)
         embed.add_field(name="Space", value=f"{emoji} {space_name}", inline=True)
         embed.add_field(name="Tags", value=tags, inline=True)
         embed.add_field(name="Status", value=status, inline=True)
