@@ -287,7 +287,7 @@ class Clickup(commands.Cog):
             # Only send the intro embed once, then send department embeds as followups
             if department == departments[0]:
                 await interaction.edit_original_response(content=None, embed=intro_embed)
-            await interaction.followup.send(embeds=[username_embed, total_embed], ephemeral=True)
+            await interaction.followup.send(embeds=[username_embed, total_embed])
 
     @app_commands.command(name="create", description="Request a new training task in ClickUp.")
     @app_commands.describe(
