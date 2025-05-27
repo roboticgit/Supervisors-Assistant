@@ -319,11 +319,12 @@ This bot has several main functions at this time:
 
 Additionally, a list of commands can be found below:
 > 1. `/ping` - Check if the bot is online and it's response time.
-> 2. `/settings` - Configure your account information.
-> 3. `/check` - Check if you've completed this month's quota, or see how far along you are.
-> 4. `/create` - Create a new training request in a department (defaults to your primary department), and automatically ensures that timeslot is availible.
+> 2. `/contact` - Contact the bot administrator (Robotic_dony2468) for support or questions, and they'll reply via the bot's DMs.
+> 3. `/settings` - Configure your account information.
+> 4. `/check` - Check if you've completed this month's quota, or see how far along you are.
+> 5. `/create` - Create a new training request in a department (defaults to your primary department), and automatically ensures that timeslot is availible.
 
----> Note that you'll get developer messages every so often as I push out updates. These cannot be turned off, but are very infrequent.
+---> Please be aware that you'll get developer messages every so often as I push out updates. These cannot be turned off, but are very infrequent.
 
 Note: This bot is still in development, and some features may not work as expected. If you encounter any issues, please report them to the bot administrator (Robotic_dony2468). Thanks again for using SCRTA!""",
                     color=discord.Color.purple()
