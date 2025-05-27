@@ -329,7 +329,12 @@ Additionally, a list of commands can be found below:
 Note: This bot is still in development, and some features may not work as expected. If you encounter any issues, please report them to the bot administrator (Robotic_dony2468). Thanks again for using SCRTA!""",
                     color=discord.Color.purple()
                 )
-                await interaction.user.send(embed=embed)
+                sent_dm = await interaction.user.send(embed=embed)
+                # Try to pin the welcome message in the user's DMs
+                try:
+                    await sent_dm.pin(reason="For safekeeping :)")
+                except Exception:
+                    pass  # Ignore if pinning fails (e.g., DMs or permissions)
             except Exception:
                 pass  # Ignore if DMs are closed
 
