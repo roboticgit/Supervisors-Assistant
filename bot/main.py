@@ -35,7 +35,7 @@ def get_db_connection():
 @bot.event
 async def on_ready():
     print(f'Logged in as {bot.user}')
-    activity = discord.Activity(type=discord.ActivityType.watching, name=f"ClickUp probably")
+    activity = discord.Activity(type=discord.ActivityType.watching, name=f"ClickUp 24/7")
     await bot.change_presence(status=discord.Status.online, activity=activity)
     for filename in os.listdir('./bot/cogs'):
         if filename.endswith('.py') and filename != '__init__.py':  # Skip __init__.py
@@ -273,6 +273,28 @@ async def on_message(message):
         await message.channel.send(embed=embed)
         return
     await bot.process_commands(message)
+
+@tree.command(name="contact", description="Contact the bot administrator with anything!")
+@app_commands.describe(
+    content="The content to submit",
+)
+async def contact(interaction: discord.Interaction, content: str):
+    # Channel ID is constant
+    channel_id = 1376742304143904820
+    try:
+        channel = await bot.fetch_channel(channel_id)
+    except Exception:
+        await interaction.response.send_message("Could not find the submission channel! You'll have to contact the bot administrator yourself.", ephemeral=True)
+        return
+    # Build embed with the user's submission
+    embed = discord.Embed(title="New Submission", description=content, color=discord.Color.blue())
+    embed.set_footer(text=f"From {interaction.user} ({interaction.user.id})")
+    # Send the message to the channel
+    try:
+        await channel.send(f"# INCOMING MESSAGE:\n{interaction.user.mention} ({interaction.user.id})", embed=embed)
+        await interaction.response.send_message("Your submission has been sent!", ephemeral=True)
+    except Exception as e:
+        await interaction.response.send_message(f"Failed to send submission: {e}", ephemeral=True)
 
 # Run the bot
 bot.run(TOKEN)
