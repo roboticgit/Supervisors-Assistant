@@ -31,7 +31,6 @@ class Clickup(commands.Cog):
 
     @app_commands.command(name="check", description="Check if you've reached quota.")
     async def check(self, interaction: discord.Interaction):
-        await interaction.response.send_message("Working on your request...", ephemeral=True)
         connection = get_db_connection()
         cursor = connection.cursor(dictionary=True)
         cursor.execute("SELECT primary_department, secondary_department, roblox_username, clickup_email, timezone FROM users WHERE discord_id = %s", (interaction.user.id,))
@@ -48,7 +47,7 @@ class Clickup(commands.Cog):
                     'clickup_email'
                 ]
             )):
-            await interaction.edit_original_response(content="User data is missing or incomplete! Please run `/settings` and fill out all of the fields")
+            await interaction.response.send_message("User data is missing or incomplete! Please run `/settings` and fill out all of the fields", ephemeral=True)
             return
 
         roblox_username = user_data['roblox_username']
@@ -158,6 +157,13 @@ class Clickup(commands.Cog):
                 ),
                 color=discord.Color.blue()
             )
+            # Send intro embed immediately with processing message
+            if department == departments[0]:
+                await interaction.response.send_message(
+                    content="Processing your request... For now, here's the explanation to your quota statuses returned by the bot:",
+                    embed=intro_embed,
+                    ephemeral=True
+                )
 
             department_colors = {
                 "Driving Department": 0xE43D2E,  # Red
@@ -168,17 +174,17 @@ class Clickup(commands.Cog):
             embed_color = department_colors.get(department, 0xFFFFFF)
 
             # --- Username-in-title Embed ---
+            host_emoji = '<:host:1375659506809311363>'
+            fail_emoji = '<:fail:1373358894444707963>'
+            ontrack_emoji = '<:ontrack:1373358874136154293>'
+            pass_emoji = '<:pass:1373358844499066991>'
             username_embed = discord.Embed(
-                title=f"`Hosts:` {department}",
+                title=f"{department}: Just Hosts",
                 color=embed_color
             )
-            if concluded_total > 0:
-                completed_hosts_value = f"{concluded_username} Hosts/{concluded_total} Total ({concluded_username / concluded_total * 100:.2f}%)"
-            else:
-                completed_hosts_value = f"{concluded_username} Hosts/{concluded_total} Total"
             username_embed.add_field(
                 name="Completed Hosts",
-                value=completed_hosts_value,
+                value=f"{str(concluded_username)} Hosts",
                 inline=False
             )
             # Scheduled with readable date/time and links
@@ -210,32 +216,30 @@ class Clickup(commands.Cog):
                 inline=False
             )
             username_embed.add_field(
-                name="Total Hosts (Completed + Scheduled)",
-                value=str(concluded_username + scheduled_username),
+                name="All in All (Completed + Scheduled)",
+                value=f"{str(concluded_username + scheduled_username)}/2 ({(concluded_username + scheduled_username) / 2 * 100:.2f}% of quota)",
                 inline=False
             )
             # Quota logic for username-in-title
             host_required = 3 if department == "Driving Department" else 2
             if concluded_username >= host_required:
-                status = "PASSING"
-                thumb = "https://cdn.discordapp.com/attachments/1363651120349843656/1373024419198537889/image.png"
+                status = f"PASSING {pass_emoji}"
             elif concluded_username + scheduled_username >= host_required:
-                status = "ON-TRACK"
-                thumb = "https://cdn.discordapp.com/attachments/1363651120349843656/1373024402635096084/image.png"
+                status = f"ON-TRACK {ontrack_emoji}"
             else:
-                status = "FAILING"
-                thumb = "https://cdn.discordapp.com/attachments/1363651120349843656/1373024369378332702/image.png"
-            username_embed.add_field(name="Quota Status (Hosts)", value=status, inline=False)
-            username_embed.set_thumbnail(url=thumb)
+                status = f"FAILING {fail_emoji}"
+            username_embed.add_field(name="Quota Status", value=status, inline=False)
+            username_embed.set_thumbnail(url="https://cdn.discordapp.com/emojis/1375659506809311363.png")
 
             # --- Total Trainings Embed ---
+            cohost_emoji = '<:cohost:1375659520826806305>'
             total_embed = discord.Embed(
-                title=f"`Total Trainings:` {department}",
+                title=f"{department}: All Trainings",
                 color=embed_color
             )
             total_embed.add_field(
-                name="Completed Trainings (Total)",
-                value=str(concluded_total),
+                name="Completed Trainings",
+                value=f"{str(concluded_total)} Trainings",
                 inline=False
             )
             # Scheduled with readable date/time and links
@@ -262,27 +266,24 @@ class Clickup(commands.Cog):
             else:
                 scheduled_value = "None"
             total_embed.add_field(
-                name="Scheduled Trainings (All)",
+                name="Scheduled Trainings",
                 value=scheduled_value,
                 inline=False
             )
             total_embed.add_field(
-                name="Total Trainings (Completed + Scheduled)",
-                value=str(concluded_total + scheduled_total),
+                name="All in All (Completed + Scheduled)",
+                value=f"{str(concluded_total + scheduled_total)}/8 ({(concluded_total + scheduled_total) / 8 * 100:.2f}% of quota)",
                 inline=False
             )
             # Quota logic for total
             if concluded_total >= 8:
-                status = "PASSING"
-                thumb = "https://cdn.discordapp.com/attachments/1363651120349843656/1373024419198537889/image.png"
+                status = f"PASSING {pass_emoji}"
             elif concluded_total + scheduled_total >= 8:
-                status = "ON-TRACK"
-                thumb = "https://cdn.discordapp.com/attachments/1363651120349843656/1373024402635096084/image.png"
+                status = f"ON-TRACK {ontrack_emoji}"
             else:
-                status = "FAILING"
-                thumb = "https://cdn.discordapp.com/attachments/1363651120349843656/1373024369378332702/image.png"
-            total_embed.add_field(name="Quota Status (Total)", value=status, inline=False)
-            total_embed.set_thumbnail(url=thumb)
+                status = f"FAILING {fail_emoji}"
+            total_embed.add_field(name="Quota Status", value=status, inline=False)
+            total_embed.set_thumbnail(url="https://cdn.discordapp.com/emojis/1375659520826806305.png")
 
             # Only send the intro embed once, then send department embeds as followups
             if department == departments[0]:

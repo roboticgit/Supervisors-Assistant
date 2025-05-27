@@ -1,6 +1,6 @@
 import discord
 from discord.ext import commands, tasks
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import pytz
 import os
 import mysql.connector
@@ -186,10 +186,10 @@ class Reminders(commands.Cog):
             embed = discord.Embed(title=f"Bi-Weekly Reminder: 3 Days left ({department})", description="You are receiving this reminder because you have not completed at least one Host/CoHost within the initial 2 weeks of the month!\n\n- Run `/check` to get more specifics on your quota situation\n- Note that these do NOT account for LOAs\n\nYou can disable these reminders in `/settings`", color=discord.Color.orange())
         elif days_left == 7:
             host_required = 3 if department == "Driving Department" else 2
-            embed = discord.Embed(title=f"Quota Reminder: A Week Left ({department})", description=f"You are receiving this reminder because you have not completed at least {host_required} hosts and 8 total Hosts/CoHosts yet!\n\n- Run `/check` to get more specifics on your quota situation\n- Note that these do NOT account for LOAs\n\nYou can disable these reminders in `/settings`", color=discord.Color.yellow())
+            embed = discord.Embed(title=f"Quota Reminder: A Week Left ({department})", description=f"You are receiving this reminder because you have not completed at least {host_required} hosts and/or 8 total Hosts/CoHosts yet!\n\n- Run `/check` to get more specifics on your quota situation\n- Note that these do NOT account for LOAs\n\nYou can disable these reminders in `/settings`", color=discord.Color.yellow())
         elif days_left == 3:
             host_required = 3 if department == "Driving Department" else 2
-            embed = discord.Embed(title=f"Quota Reminder: 3 Days Left ({department})", description=f"You are receiving this reminder because you have not completed at least {host_required} hosts and 8 total Hosts/CoHosts yet!\n\n- Run `/check` to get more specifics on your quota situation\n- Note that these do NOT account for LOAs\n\nYou can disable these reminders in `/settings`", color=discord.Color.red())
+            embed = discord.Embed(title=f"Quota Reminder: 3 Days Left ({department})", description=f"You are receiving this reminder because you have not completed at least {host_required} hosts and/or 8 total Hosts/CoHosts yet!\n\n- Run `/check` to get more specifics on your quota situation\n- Note that these do NOT account for LOAs\n\nYou can disable these reminders in `/settings`", color=discord.Color.red())
         else:
             embed = discord.Embed(title=f"Quota Reminder ({department})", description="How did we get here? The bot has no idea why it's sending you this, but you should probably run `/check` to see whats up.", color=discord.Color.blue())
         try:
@@ -215,7 +215,7 @@ class Reminders(commands.Cog):
         else:
             type_str = 'Co-Host'
         due_date_ms = int(task.get('due_date', 0))
-        due_date_utc = datetime.utcfromtimestamp(due_date_ms / 1000)
+        due_date_utc = datetime.fromtimestamp(due_date_ms / 1000, tz=timezone.utc)
         due_date_local = due_date_utc.replace(tzinfo=pytz.UTC).astimezone(user_tz)
         date_str = due_date_local.strftime('%A, %B %d, %Y at %I:%M %p %Z')
         task_url = task.get('url')
@@ -248,7 +248,7 @@ class Reminders(commands.Cog):
             view = discord.ui.View()
             view.add_item(discord.ui.Button(label="ClickUp Task", url=task_url))
         elif embed_num == 3:
-            embed = discord.Embed(title=f"Reminder: `{type_str}` in 2 hours", description=f"Your `{type_str}` is happening in 2 hours. You should double check you've set an alarm for this training if you intend to leave your computer.", color=discord.Color.orange())
+            embed = discord.Embed(title=f"Reminder: `{type_str}` in 2 hours", description=f"Your `{type_str}` is happening in 2 hours. You should double check you've set an alarm for this training, and if you aren't home, now would be a good time to consider returning.", color=discord.Color.orange())
             view = discord.ui.View()
             view.add_item(discord.ui.Button(label="ClickUp Task", url=task_url))
         elif embed_num == 4:
@@ -328,22 +328,32 @@ class Reminders(commands.Cog):
                                 discord_id = user['discord_id']
                                 roblox_username = user['roblox_username']
                                 if any(user.get(field) == 'Not set' for field in ['discord_id', 'roblox_username', 'clickup_email', 'reminder_preferences']):
-                                    await self.log_to_channel(f"⚙️ [Skip] User {discord_id} | {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()} | Missing required user data. Skipping.")
+                                    await self.log_to_channel(f"⚙️ [Skip] User {discord_id} | {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()} | Missing required user data. Skipping.",
+                                department=dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()
+                            )
                                     continue
                                 if 'training' not in user.get('reminder_preferences', '').lower():
-                                    await self.log_to_channel(f"⚙️ [Skip] User {discord_id} | {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()} | 'training' not in reminder preferences. Skipping.")
+                                    await self.log_to_channel(f"⚙️ [Skip] User {discord_id} | {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()} | 'training' not in reminder preferences. Skipping.",
+                                department=dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()
+                            )
                                     continue
                                 # Host/CoHost logic
                                 is_host = roblox_username in task['name']
                                 if embed_num == 4 and not is_host:
-                                    await self.log_to_channel(f"⚙️ [Skip] User {discord_id} | {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()} | 30m reminder only for Host. Skipping.")
+                                    await self.log_to_channel(f"⚙️ [Skip] User {discord_id} | {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()} | 30m reminder only for Host. Skipping.",
+                                department=dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()
+                            )
                                     continue
                                 if embed_num == 5 and is_host:
-                                    await self.log_to_channel(f"⚙️ [Skip] User {discord_id} | {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()} | 15m reminder only for Co-Host. Skipping.")
+                                    await self.log_to_channel(f"⚙️ [Skip] User {discord_id} | {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()} | 15m reminder only for Co-Host. Skipping.",
+                                department=dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()
+                            )
                                     continue
                                 # Log sending
-                                due_str = datetime.utcfromtimestamp(due_date/1000).strftime('%Y-%m-%d %H:%M UTC')
-                                await self.log_to_channel(f"⚙️ [Send] User {discord_id} | {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()} | Task '{task.get('name','')}' | Due: {due_str} | Reminder: {label} | Type: {'Host' if is_host else 'Co-Host'} | DM will be sent.")
+                                due_str = datetime.fromtimestamp(due_date/1000, tz=timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
+                                await self.log_to_channel(f"⚙️ [Send] User {discord_id} | {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()} | Task '{task.get('name','')}' | Due: {due_str} | Reminder: {label} | Type: {'Host' if is_host else 'Co-Host'} | DM will be sent.",
+                                department=dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()
+                            )
                                 # Main embed (24h) is not a reply, others reply to it
                                 reply_to = None
                                 key = f"{discord_id}:{task.get('id')}"
@@ -355,7 +365,7 @@ class Reminders(commands.Cog):
                                     reply_id = sent_message_ids.get(key)
                                     msg = await self.send_training_embed(discord_id, embed_num, task, reply_to_message_id=reply_id)
                         if not found_user:
-                            due_str = datetime.utcfromtimestamp(due_date/1000).strftime('%Y-%m-%d %H:%M UTC')
+                            due_str = datetime.fromtimestamp(due_date/1000, tz=timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
                             await self.log_to_channel(
                                 f"⚙️ [NoAssignee] {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()} | Task '{task.get('name','')}' | Due: {due_str} | Reminder: {label} | No matching user in DB. Assignees: {assignees}",
                                 department=dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()

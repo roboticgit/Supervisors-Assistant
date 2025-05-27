@@ -35,7 +35,7 @@ def get_db_connection():
 @bot.event
 async def on_ready():
     print(f'Logged in as {bot.user}')
-    activity = discord.Activity(type=discord.ActivityType.watching, name=f"SCR's supervisors")
+    activity = discord.Activity(type=discord.ActivityType.watching, name=f"ClickUp probably")
     await bot.change_presence(status=discord.Status.online, activity=activity)
     for filename in os.listdir('./bot/cogs'):
         if filename.endswith('.py') and filename != '__init__.py':  # Skip __init__.py
