@@ -61,6 +61,24 @@ class Clickup(commands.Cog):
         first_of_month = datetime(year=now.year, month=now.month, day=1, tzinfo=timezone.utc)
         first_of_month_unix_ms = int(first_of_month.timestamp() * 1000)
 
+        # --- Intro Embed (now only sent once, blue color) ---
+        intro_embed = discord.Embed(
+            title=f"Quota Status Explanation",
+            description=(
+                "**PASSING:** You have completed enough trainings to meet the quota.\n"
+                "**ON-TRACK:** You have not completed enough, but if you attend all your scheduled trainings, you will meet the quota.\n"
+                "**FAILING:** You have not completed nor scheduled enough to meet the quota.\n\n"
+                "> **Note:** Only trainings where you are an assignee and the due date is after the start of the month are counted. "
+            ),
+            color=discord.Color.blue()
+        )
+        # Send intro embed immediately with processing message (before the department loop)
+        await interaction.response.send_message(
+            content="Processing your request... For now, here's the explanation to your quota statuses returned by the bot:",
+            embed=intro_embed,
+            ephemeral=True
+        )
+
         for department in departments:
             if department == "None":
                 continue
@@ -145,25 +163,6 @@ class Clickup(commands.Cog):
                 if data.get("last_page", False):
                     break
                 page += 1
-
-            # --- Intro Embed (now only sent once, blue color) ---
-            intro_embed = discord.Embed(
-                title=f"Quota Status Explanation",
-                description=(
-                    "**PASSING:** You have completed enough trainings to meet the quota.\n"
-                    "**ON-TRACK:** You have not completed enough, but if you attend all your scheduled trainings, you will meet the quota.\n"
-                    "**FAILING:** You have not completed nor scheduled enough to meet the quota.\n\n"
-                    "> **Note:** Only trainings where you are an assignee and the due date is after the start of the month are counted. "
-                ),
-                color=discord.Color.blue()
-            )
-            # Send intro embed immediately with processing message
-            if department == departments[0]:
-                await interaction.response.send_message(
-                    content="Processing your request... For now, here's the explanation to your quota statuses returned by the bot:",
-                    embed=intro_embed,
-                    ephemeral=True
-                )
 
             department_colors = {
                 "Driving Department": 0xE43D2E,  # Red
