@@ -216,7 +216,8 @@ class Clickup(commands.Cog):
             )
             username_embed.add_field(
                 name="All in All (Completed + Scheduled)",
-                value=f"{str(concluded_username + scheduled_username)}/2 ({(concluded_username + scheduled_username) / 2 * 100:.2f}% of quota)",
+                value=f"{str(concluded_username + scheduled_username)}/2 (" +
+                      f"{round((concluded_username + scheduled_username) / 2 * 100)}% of quota)",
                 inline=False
             )
             # Quota logic for username-in-title
@@ -271,7 +272,8 @@ class Clickup(commands.Cog):
             )
             total_embed.add_field(
                 name="All in All (Completed + Scheduled)",
-                value=f"{str(concluded_total + scheduled_total)}/8 ({(concluded_total + scheduled_total) / 8 * 100:.2f}% of quota)",
+                value=f"{str(concluded_total + scheduled_total)}/8 (" +
+                      f"{round((concluded_total + scheduled_total) / 8 * 100)}% of quota)",
                 inline=False
             )
             # Quota logic for total
