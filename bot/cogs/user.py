@@ -391,6 +391,33 @@ Note: This bot is still in development, and some features may not work as expect
             view = SettingsMenuView(pending_settings_changes[user_id], self, pending_mode=True, just_changed=True)
             await interaction.response.edit_message(embed=embed, view=view)
 
+    @app_commands.command(name="contact", description="Contact the bot administrator with anything!")
+    @app_commands.describe(
+        content="The content to submit",
+    )
+    async def contact(self, interaction: discord.Interaction, content: str):
+        # Channel ID is constant
+        channel_id = 1376742304143904820
+        try:
+            channel = await self.bot.fetch_channel(channel_id)
+        except Exception:
+            await interaction.response.send_message("Could not find the submission channel! You'll have to contact the bot administrator yourself.", ephemeral=True)
+            return
+        # Build embed with the user's submission
+        embed = discord.Embed(title="New Submission", description=content, color=discord.Color.blue())
+        embed.set_footer(text=f"From {interaction.user} ({interaction.user.id})")
+        # Send the message to the channel
+        try:
+            sent_message = await channel.send(f"# INCOMING MESSAGE:\n{interaction.user.mention} ({interaction.user.id})", embed=embed)
+            # Try to pin the message
+            try:
+                await sent_message.pin(reason="User submission via /contact command")
+            except Exception:
+                pass  # Ignore if pinning fails (e.g., no permission)
+            await interaction.response.send_message("Your submission has been sent!", ephemeral=True)
+        except Exception as e:
+            await interaction.response.send_message(f"Failed to send submission: {e}", ephemeral=True)
+
 class SettingsApprovalView(View):
     def __init__(self, user_id, changes, cog):
         super().__init__(timeout=86400)  # 24 hours
