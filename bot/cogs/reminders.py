@@ -181,15 +181,15 @@ class Reminders(commands.Cog):
         days_in_month = (today.replace(month=today.month % 12 + 1, day=1) - timedelta(days=1)).day
         days_left = days_in_month - day_of_month
         if day_of_month == 7:
-            embed = discord.Embed(title=f"Bi-Weekly Reminder: A Week Left ({department})", description="You are receiving this reminder because you have not completed at least one Host/CoHost within the initial 2 weeks of the month!\n\n- Run `/check` to get more specifics on your quota situation\n- Note that these do NOT account for LOAs\n\nYou can disable these reminders in `/settings`", color=discord.Color.yellow())
+            embed = discord.Embed(title=f"Bi-Weekly Reminder: A Week Left ({department})", description="You are receiving this reminder because you have not completed at least one Host/CoHost within the initial 2 weeks of the month!\n\n- Run `/check` to get more specifics on your quota situation\n- Note that these do NOT account for LOAs\n\nYou can disable these reminders in `/settings`", color=discord.Color.blue())
         elif day_of_month == 11:
-            embed = discord.Embed(title=f"Bi-Weekly Reminder: 3 Days left ({department})", description="You are receiving this reminder because you have not completed at least one Host/CoHost within the initial 2 weeks of the month!\n\n- Run `/check` to get more specifics on your quota situation\n- Note that these do NOT account for LOAs\n\nYou can disable these reminders in `/settings`", color=discord.Color.orange())
+            embed = discord.Embed(title=f"Bi-Weekly Reminder: 3 Days left ({department})", description="You are receiving this reminder because you have not completed at least one Host/CoHost within the initial 2 weeks of the month!\n\n- Run `/check` to get more specifics on your quota situation\n- Note that these do NOT account for LOAs\n\nYou can disable these reminders in `/settings`", color=discord.Color.blue())
         elif days_left == 7:
             host_required = 3 if department == "Driving Department" else 2
-            embed = discord.Embed(title=f"Quota Reminder: A Week Left ({department})", description=f"You are receiving this reminder because you have not completed at least {host_required} hosts and/or 8 total Hosts/CoHosts yet!\n\n- Run `/check` to get more specifics on your quota situation\n- Note that these do NOT account for LOAs\n\nYou can disable these reminders in `/settings`", color=discord.Color.yellow())
+            embed = discord.Embed(title=f"Quota Reminder: A Week Left ({department})", description=f"You are receiving this reminder because you have not completed at least {host_required} hosts and/or 8 total Hosts/CoHosts yet!\n\n- Run `/check` to get more specifics on your quota situation\n- Note that these do NOT account for LOAs\n\nYou can disable these reminders in `/settings`", color=discord.Color.blue())
         elif days_left == 3:
             host_required = 3 if department == "Driving Department" else 2
-            embed = discord.Embed(title=f"Quota Reminder: 3 Days Left ({department})", description=f"You are receiving this reminder because you have not completed at least {host_required} hosts and/or 8 total Hosts/CoHosts yet!\n\n- Run `/check` to get more specifics on your quota situation\n- Note that these do NOT account for LOAs\n\nYou can disable these reminders in `/settings`", color=discord.Color.red())
+            embed = discord.Embed(title=f"Quota Reminder: 3 Days Left ({department})", description=f"You are receiving this reminder because you have not completed at least {host_required} hosts and/or 8 total Hosts/CoHosts yet!\n\n- Run `/check` to get more specifics on your quota situation\n- Note that these do NOT account for LOAs\n\nYou can disable these reminders in `/settings`", color=discord.Color.blue())
         else:
             embed = discord.Embed(title=f"Quota Reminder ({department})", description="How did we get here? The bot has no idea why it's sending you this, but you should probably run `/check` to see whats up.", color=discord.Color.blue())
         try:
@@ -240,23 +240,23 @@ class Reminders(commands.Cog):
             delete_after = 15 * 60
 
         if embed_num == 1:
-            embed = discord.Embed(title=f"Upcoming `{type_str}` in a day", description=f"You have an upcoming `{type_str}` occuring in 24 hours ({date_str}). Now would be a good time to ensure you are available.", color=discord.Color.blue())
+            embed = discord.Embed(title=f"Upcoming `{type_str}` in a day", description=f"You have an upcoming `{type_str}` occuring in 24 hours ({date_str}). Now would be a good time to ensure you are available.", color=discord.Color.light_grey())
             view = discord.ui.View()
             view.add_item(discord.ui.Button(label="ClickUp Task", url=task_url))
         elif embed_num == 2:
-            embed = discord.Embed(title=f"Reminder:`{type_str}` in 10 hours", description=f"Your `{type_str}` training is in 10 hours ({date_str}). You should probably set an alarm for this training.", color=discord.Color.yellow())
+            embed = discord.Embed(title=f"Reminder:`{type_str}` in 10 hours", description=f"Your `{type_str}` training is in 10 hours ({date_str}). You should probably set an alarm for this training.", color=discord.Color.light_grey())
             view = discord.ui.View()
             view.add_item(discord.ui.Button(label="ClickUp Task", url=task_url))
         elif embed_num == 3:
-            embed = discord.Embed(title=f"Reminder: `{type_str}` in 2 hours", description=f"Your `{type_str}` is happening in 2 hours. You should double check you've set an alarm for this training, and if you aren't home, now would be a good time to consider returning.", color=discord.Color.orange())
+            embed = discord.Embed(title=f"Reminder: `{type_str}` in 2 hours", description=f"Your `{type_str}` is happening in 2 hours. You should double check you've set an alarm for this training, and if you aren't home, now would be a good time to consider returning.", color=discord.Color.blue())
             view = discord.ui.View()
             view.add_item(discord.ui.Button(label="ClickUp Task", url=task_url))
         elif embed_num == 4:
-            embed = discord.Embed(title="Open Your Training", description=f"Your `{type_str}` is in 30 minutes! Remember to open the server.", color=discord.Color.red())
+            embed = discord.Embed(title="Open Your Training", description=f"Your `{type_str}` is in 30 minutes! Remember to open the server.", color=discord.Color.blue())
             view = discord.ui.View()
             view.add_item(discord.ui.Button(label="SCR Server", url="https://www.roblox.com/games/696347899/V2-2-Stepford-County-Railway"))
         elif embed_num == 5:
-            embed = discord.Embed(title="Join Your Training", description=f"Your `{type_str}` is in 15 minutes. Join the server if you have not already!", color=discord.Color.red())
+            embed = discord.Embed(title="Join Your Training", description=f"Your `{type_str}` is in 15 minutes. Join the server if you have not already!", color=discord.Color.blue())
             view = discord.ui.View()
             view.add_item(discord.ui.Button(label="SCR Server", url="https://www.roblox.com/games/696347899/V2-2-Stepford-County-Railway"))
         else:
@@ -264,15 +264,9 @@ class Reminders(commands.Cog):
             view = None
         try:
             if view:
-                if reply_to_message_id:
-                    msg = await user.send(embed=embed, view=view, delete_after=delete_after, reference=discord.MessageReference(message_id=reply_to_message_id))
-                else:
-                    msg = await user.send(embed=embed, view=view, delete_after=delete_after)
+                msg = await user.send(embed=embed, view=view, delete_after=delete_after)
             else:
-                if reply_to_message_id:
-                    msg = await user.send(embed=embed, delete_after=delete_after, reference=discord.MessageReference(message_id=reply_to_message_id))
-                else:
-                    msg = await user.send(embed=embed, delete_after=delete_after)
+                msg = await user.send(embed=embed, delete_after=delete_after)
             return msg
         except Exception as e:
             print(f"[Reminders] Failed to DM user {discord_id}: {e}")
