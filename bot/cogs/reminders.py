@@ -198,7 +198,7 @@ class Reminders(commands.Cog):
         except Exception as e:
             await self.log_to_channel(f"🗓️ Failed to DM user {discord_id} for {department}: {e}")
 
-    async def send_training_embed(self, discord_id, embed_num, task, reply_to_message_id=None):
+    async def send_training_embed(self, discord_id, embed_num, task):
         user = self.bot.get_user(discord_id)
         if not user:
             return None
@@ -280,6 +280,9 @@ class Reminders(commands.Cog):
             list_id = os.getenv(dept_key)
             if not list_id:
                 continue
+
+
+
             url = f"https://api.clickup.com/api/v2/list/{list_id}/task?archived=false&statuses=scheduled&statuses=scheduled&due_date_lt={unix_25h_away}"
             headers = {"Authorization": os.getenv('CLICKUP_API_TOKEN'), "accept": "application/json"}
             response = requests.get(url, headers=headers)
@@ -287,7 +290,6 @@ class Reminders(commands.Cog):
                 await self.log_to_channel(f"⚙️ [Error] {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()} | Could not fetch scheduled tasks: {response.text}")
                 continue
             data = response.json()
-            sent_message_ids = {}
             for task in data.get('tasks', []):
                 due_date = int(task.get('due_date', 0))
                 assignees = [a['email'] for a in task.get('assignees', [])]
@@ -318,7 +320,6 @@ class Reminders(commands.Cog):
                                 department=dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()
                             )
                                     continue
-                                # Host/CoHost logic
                                 is_host = roblox_username in task['name']
                                 if embed_num == 4 and not is_host:
                                     await self.log_to_channel(f"⚙️ [Skip] User {discord_id} | {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()} | 30m reminder only for Host. Skipping.",
@@ -333,18 +334,9 @@ class Reminders(commands.Cog):
                                 # Log sending
                                 due_str = datetime.fromtimestamp(due_date/1000, tz=timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
                                 await self.log_to_channel(f"⚙️ [Send] User {discord_id} | {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()} | Task '{task.get('name','')}' | Due: {due_str} | Reminder: {label} | Type: {'Host' if is_host else 'Co-Host'} | DM will be sent.\n\n# yoohoo over here",
-                                department=dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()
-                            )
-                                # Main embed (24h) is not a reply, others reply to it
-                                reply_to = None
-                                key = f"{discord_id}:{task.get('id')}"
-                                if embed_num == 1:
-                                    msg = await self.send_training_embed(discord_id, embed_num, task)
-                                    if msg:
-                                        sent_message_ids[key] = msg.id
-                                else:
-                                    reply_id = sent_message_ids.get(key)
-                                    msg = await self.send_training_embed(discord_id, embed_num, task, reply_to_message_id=reply_id)
+                                department=dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title())
+                                await self.send_training_embed(discord_id, embed_num, task)
+    
                         if not found_user:
                             due_str = datetime.fromtimestamp(due_date/1000, tz=timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
                             await self.log_to_channel(
@@ -352,6 +344,7 @@ class Reminders(commands.Cog):
                                 department=dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()
                             )
                         break
+
     @send_quota_reminders.before_loop
     async def before_quota_reminders(self):
         now = datetime.now(pytz.UTC)
