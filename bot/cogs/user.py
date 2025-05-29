@@ -409,11 +409,6 @@ Note: This bot is still in development, and some features may not work as expect
         # Send the message to the channel
         try:
             sent_message = await channel.send(f"# INCOMING MESSAGE:\n{interaction.user.mention} ({interaction.user.id})", embed=embed)
-            # Try to pin the message
-            try:
-                await sent_message.pin(reason="User submission via /contact command")
-            except Exception:
-                pass  # Ignore if pinning fails (e.g., no permission)
             await interaction.response.send_message("Your submission has been sent!", ephemeral=True)
         except Exception as e:
             await interaction.response.send_message(f"Failed to send submission: {e}", ephemeral=True)
