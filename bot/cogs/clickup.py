@@ -56,10 +56,17 @@ class Clickup(commands.Cog):
         if user_data['secondary_department']:
             departments.append(user_data['secondary_department'])
 
-        from datetime import datetime, timezone
+        from datetime import datetime, timezone, timedelta
         now = datetime.now(timezone.utc)
         first_of_month = datetime(year=now.year, month=now.month, day=1, tzinfo=timezone.utc)
         first_of_month_unix_ms = int(first_of_month.timestamp() * 1000)
+        # Calculate last moment of the month (11:59:59.999 PM UTC)
+        if now.month == 12:
+            next_month = datetime(year=now.year+1, month=1, day=1, tzinfo=timezone.utc)
+        else:
+            next_month = datetime(year=now.year, month=now.month+1, day=1, tzinfo=timezone.utc)
+        last_of_month = next_month - timedelta(milliseconds=1)
+        last_of_month_unix_ms = int(last_of_month.timestamp() * 1000)
 
         # --- Intro Embed (now only sent once, blue color) ---
         intro_embed = discord.Embed(
@@ -109,6 +116,7 @@ class Clickup(commands.Cog):
                         f"statuses=concluded&"
                         f"include_closed=true&"
                         f"due_date_gt={first_of_month_unix_ms}&"
+                        f"due_date_lt={last_of_month_unix_ms}&"
                         f"page={page}"
                     )
                     response = requests.get(url_with_params, headers=headers)
@@ -143,6 +151,7 @@ class Clickup(commands.Cog):
                     f"statuses=scheduled&"
                     f"include_closed=true&"
                     f"due_date_gt={first_of_month_unix_ms}&"
+                    f"due_date_lt={last_of_month_unix_ms}&"
                     f"page={page}"
                 )
                 response = requests.get(url_with_params, headers=headers)
