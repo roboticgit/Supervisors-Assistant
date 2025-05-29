@@ -226,19 +226,6 @@ class Reminders(commands.Cog):
             else:
                 task_url = "https://app.clickup.com/"
 
-        # Calculate delete_after in seconds
-        delete_after = None
-        if embed_num == 1:
-            delete_after = 24 * 60 * 60
-        elif embed_num == 2:
-            delete_after = 10 * 60 * 60
-        elif embed_num == 3:
-            delete_after = 2 * 60 * 60
-        elif embed_num == 4:
-            delete_after = 30 * 60
-        elif embed_num == 5:
-            delete_after = 15 * 60
-
         if embed_num == 1:
             embed = discord.Embed(title=f"Upcoming `{type_str}` in a day", description=f"You have an upcoming `{type_str}` occuring in 24 hours ({date_str}). Now would be a good time to ensure you are available.", color=discord.Color.light_grey())
             view = discord.ui.View()
@@ -264,9 +251,9 @@ class Reminders(commands.Cog):
             view = None
         try:
             if view:
-                msg = await user.send(embed=embed, view=view, delete_after=delete_after)
+                msg = await user.send(embed=embed, view=view)
             else:
-                msg = await user.send(embed=embed, delete_after=delete_after)
+                msg = await user.send(embed=embed)
             return msg
         except Exception as e:
             print(f"[Reminders] Failed to DM user {discord_id}: {e}")
