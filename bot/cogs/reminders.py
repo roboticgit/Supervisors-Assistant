@@ -345,7 +345,7 @@ class Reminders(commands.Cog):
                                     continue
                                 # Log sending
                                 due_str = datetime.fromtimestamp(due_date/1000, tz=timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
-                                await self.log_to_channel(f"⚙️ [Send] User {discord_id} | {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()} | Task '{task.get('name','')}' | Due: {due_str} | Reminder: {label} | Type: {'Host' if is_host else 'Co-Host'} | DM will be sent.",
+                                await self.log_to_channel(f"⚙️ [Send] User {discord_id} | {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()} | Task '{task.get('name','')}' | Due: {due_str} | Reminder: {label} | Type: {'Host' if is_host else 'Co-Host'} | DM will be sent.\n\n# yoohoo over here",
                                 department=dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()
                             )
                                 # Main embed (24h) is not a reply, others reply to it
