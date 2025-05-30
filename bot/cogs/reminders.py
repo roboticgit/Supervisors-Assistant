@@ -350,10 +350,9 @@ class Reminders(commands.Cog):
             view = None
         try:
             if view:
-                msg = await user.send(embed=embed, view=view)
+                await user.send(embed=embed, view=view)
             else:
-                msg = await user.send(embed=embed)
-            return msg
+                await user.send(embed=embed)
         except Exception as e:
             print(f"[Reminders] Failed to DM user {discord_id}: {e}")
             return None
