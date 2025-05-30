@@ -307,26 +307,10 @@ class User(commands.Cog):
             connection.commit()
             # Send welcome DM on first use
             try:
+                welcome_message = os.getenv('WELCOME_MESSAGE', "Welcome! Please continue with the `/settings` command (if you didn't finish it already) to configure your account information. Many, if not all features **REQUIRE** everything to be properly filled out.\n\nThis bot has several main functions at this time:\n- It will send you reminders for your trainings (toggleable in settings)\n- It will send you reminders to complete your quota (toggleable in settings)\n- You can check your quota with a command\n- You can automatically create a training request with a command\n\nAdditionally, a list of commands can be found below:\n> 1. `/ping` - Check if the bot is online and it's response time.\n> 2. `/contact` - Contact the bot administrator (Robotic_dony2468) for support or questions, and they'll reply via the bot's DMs.\n> 3. `/settings` - Configure your account information.\n> 4. `/check` - Check if you've completed this month's quota, or see how far along you are.\n> 5. `/create` - Create a new training request in a department (defaults to your primary department), and automatically ensures that timeslot is availible.\n\n---> Please be aware that you'll get developer messages every so often as I push out updates. These cannot be turned off, but are very infrequent.\n\nNote: This bot is still in development, and some features may not work as expected. If you encounter any issues, please report them to the bot administrator (Robotic_dony2468). Thanks again for using SCRTA!")
                 embed = discord.Embed(
                     title="Welcome to the SCR Training Assistant!",
-                    description="""Welcome! Please continue with the `/settings` command (if you didn't finish it already) to configure your account information. Many, if not all features **REQUIRE** everything to be properly filled out.
-
-This bot has several main functions at this time:
-- It will send you reminders for your trainings (toggleable in settings)
-- It will send you reminders to complete your quota (toggleable in settings)
-- You can check your quota with a command
-- You can automatically create a training request with a command
-
-Additionally, a list of commands can be found below:
-> 1. `/ping` - Check if the bot is online and it's response time.
-> 2. `/contact` - Contact the bot administrator (Robotic_dony2468) for support or questions, and they'll reply via the bot's DMs.
-> 3. `/settings` - Configure your account information.
-> 4. `/check` - Check if you've completed this month's quota, or see how far along you are.
-> 5. `/create` - Create a new training request in a department (defaults to your primary department), and automatically ensures that timeslot is availible.
-
----> Please be aware that you'll get developer messages every so often as I push out updates. These cannot be turned off, but are very infrequent.
-
-Note: This bot is still in development, and some features may not work as expected. If you encounter any issues, please report them to the bot administrator (Robotic_dony2468). Thanks again for using SCRTA!""",
+                    description=welcome_message,
                     color=discord.Color.purple()
                 )
                 sent_dm = await interaction.user.send(embed=embed)
@@ -392,9 +376,7 @@ Note: This bot is still in development, and some features may not work as expect
             await interaction.response.edit_message(embed=embed, view=view)
 
     @app_commands.command(name="contact", description="Contact the bot administrator with anything!")
-    @app_commands.describe(
-        content="The content to submit",
-    )
+    @app_commands.describe(content="The content to submit",)
     async def contact(self, interaction: discord.Interaction, content: str):
         # Channel ID is constant
         channel_id = 1376742304143904820
@@ -408,7 +390,7 @@ Note: This bot is still in development, and some features may not work as expect
         embed.set_footer(text=f"From {interaction.user} ({interaction.user.id})")
         # Send the message to the channel
         try:
-            sent_message = await channel.send(f"# INCOMING MESSAGE:\n{interaction.user.mention} ({interaction.user.id})", embed=embed)
+            await channel.send(f"# INCOMING MESSAGE:\n{interaction.user.mention} ({interaction.user.id})", embed=embed)
             await interaction.response.send_message("Your submission has been sent!", ephemeral=True)
         except Exception as e:
             await interaction.response.send_message(f"Failed to send submission: {e}", ephemeral=True)
