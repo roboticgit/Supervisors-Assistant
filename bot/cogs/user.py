@@ -289,7 +289,7 @@ class User(commands.Cog):
         user_data = cursor.fetchone()
 
         if not user_data:
-            # Create a default user data structure if none exists
+            
             user_data = {
                 'clickup_email': 'Not set',
                 'roblox_username': 'Not set',
@@ -305,22 +305,22 @@ class User(commands.Cog):
                  user_data['primary_department'], user_data['secondary_department'], user_data['reminder_preferences'])
             )
             connection.commit()
-            # Send welcome DM on first use
+          
             try:
-                welcome_message = os.getenv('WELCOME_MESSAGE', "Welcome! Please continue with the `/settings` command (if you didn't finish it already) to configure your account information. Many, if not all features **REQUIRE** everything to be properly filled out.\n\nThis bot has several main functions at this time:\n- It will send you reminders for your trainings (toggleable in settings)\n- It will send you reminders to complete your quota (toggleable in settings)\n- You can check your quota with a command\n- You can automatically create a training request with a command\n\nAdditionally, a list of commands can be found below:\n> 1. `/ping` - Check if the bot is online and it's response time.\n> 2. `/contact` - Contact the bot administrator (Robotic_dony2468) for support or questions, and they'll reply via the bot's DMs.\n> 3. `/settings` - Configure your account information.\n> 4. `/check` - Check if you've completed this month's quota, or see how far along you are.\n> 5. `/create` - Create a new training request in a department (defaults to your primary department), and automatically ensures that timeslot is availible.\n\n---> Please be aware that you'll get developer messages every so often as I push out updates. These cannot be turned off, but are very infrequent.\n\nNote: This bot is still in development, and some features may not work as expected. If you encounter any issues, please report them to the bot administrator (Robotic_dony2468). Thanks again for using SCRTA!")
+                welcome_message = os.getenv('WELCOME_MESSAGE', "Error loading welcome message. Please contact the bot administrator.")
                 embed = discord.Embed(
-                    title="Welcome to the SCR Training Assistant!",
+                    title="Thanks for using the Supervisor's Assistant!",
                     description=welcome_message,
                     color=discord.Color.purple()
                 )
                 sent_dm = await interaction.user.send(embed=embed)
-                # Try to pin the welcome message in the user's DMs
+               
                 try:
-                    await sent_dm.pin(reason="For safekeeping :)")
+                    await sent_dm.pin(reason="For your reference")
                 except Exception:
-                    pass  # Ignore if pinning fails (e.g., DMs or permissions)
+                    pass  
             except Exception:
-                pass  # Ignore if DMs are closed
+                pass  
 
         connection.close()
 
