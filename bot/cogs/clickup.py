@@ -472,3 +472,6 @@ class Clickup(commands.Cog):
                 await interaction.edit_original_response(content=f"Training created, but failed to update description. ClickUp API response: {update_resp.text}")
         else:
             await interaction.edit_original_response(content=f"All your information was valid, but clickup failed to create training. Loser's (ClickUp's) API response: {create_resp.text}")
+
+async def setup(bot):
+    await bot.add_cog(Clickup(bot))
