@@ -68,7 +68,13 @@ class Clickup(commands.Cog):
         last_of_month = next_month - timedelta(milliseconds=1)
         last_of_month_unix_ms = int(last_of_month.timestamp() * 1000)
 
-        # --- Intro Embed (now only sent once, blue color) ---
+        # --- Send initial message (not ephemeral, no embed) ---
+        await interaction.response.send_message(
+            content="Processing your request...",
+            ephemeral=False
+        )
+
+        # --- Prepare status explanation embed (for followup, ephemeral) ---
         intro_embed = discord.Embed(
             title=f"Quota Status Explanation",
             description=(
@@ -79,19 +85,14 @@ class Clickup(commands.Cog):
             ),
             color=discord.Color.blue()
         )
-        # Send intro embed immediately with processing message (before the department loop)
-        await interaction.response.send_message(
-            content="Processing your request... For now, here's the explanation to your quota statuses returned by the bot:",
-            embed=intro_embed,
-            ephemeral=True
-        )
 
+        # --- After API returns, edit the original message to show the API result (remove intro embed logic) ---
         for department in departments:
             if department == "None":
                 continue
             list_id = self.clickup_list_ids.get(department)
             if not list_id:
-                await interaction.followup.send(f"Could not find {department}'s Clickup list. Please check your settings and ensure your primary department is valid.", ephemeral=True)
+                await interaction.edit_original_response(content=f"Could not find {department}'s Clickup list. Please check your settings and ensure your primary department is valid.")
                 continue
             headers = self.get_clickup_headers()
 
@@ -295,10 +296,14 @@ class Clickup(commands.Cog):
             total_embed.add_field(name="Quota Status", value=status, inline=False)
             total_embed.set_thumbnail(url="https://cdn.discordapp.com/emojis/1375659520826806305.png")
 
-            # Only send the intro embed once, then send department embeds as followups
+            # Only send the API result as the main message (edit original response)
             if department == departments[0]:
-                await interaction.edit_original_response(content=None, embed=intro_embed)
-            await interaction.followup.send(embeds=[username_embed, total_embed])
+                await interaction.edit_original_response(content=None, embeds=[username_embed, total_embed])
+            else:
+                await interaction.followup.send(embeds=[username_embed, total_embed], ephemeral=False)
+
+        # Send the status explanation as a hidden (ephemeral) followup
+        await interaction.followup.send(embed=intro_embed, ephemeral=True)
 
     @app_commands.command(name="create", description="Request a new training task in ClickUp.")
     @app_commands.describe(
