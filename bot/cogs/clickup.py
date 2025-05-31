@@ -318,24 +318,27 @@ class Clickup(commands.Cog):
         user_data = cursor.fetchone()
         connection.close()
 
+        # Immediately acknowledge the interaction
+        await interaction.response.send_message("Processing your request...", ephemeral=False)
+
         # Return early if any required field is 'Not set'
         required_fields = ['primary_department', 'clickup_email', 'timezone', 'roblox_username']
         if not user_data or any(user_data.get(field) == 'Not set' for field in required_fields):
-            await interaction.response.send_message("User data is missing or incomplete! Please run `/settings` and fill out all of the fields", ephemeral=True)
+            await interaction.edit_original_response(content="User data is missing or incomplete! Please run `/settings` and fill out all of the fields.")
             return
 
         if not department:
             department = user_data['primary_department']
         list_id = self.clickup_list_ids.get(department)
         if not list_id:
-            await interaction.response.send_message("Invalid department selected.", ephemeral=True)
+            await interaction.edit_original_response(content="Invalid department selected.")
             return
 
         # Get template ID from .env
         template_env_key = f"CLICKUP_TEMPLATE_ID_{department.upper().replace(' ', '_')}"
         template_id = os.getenv(template_env_key)
         if not template_id:
-            await interaction.response.send_message("Cannot find card template.", ephemeral=True)
+            await interaction.edit_original_response(content="Cannot find card template.")
             return
 
         user_timezone = user_data['timezone']
@@ -354,7 +357,7 @@ class Clickup(commands.Cog):
             # Check if the requested date is more than 19 days in advance
             now_utc = datetime.now(pytz.UTC)
             if (london_dt - now_utc).days > 19:
-                await interaction.response.send_message("You cannot request a training more than 18 days in advance.", ephemeral=True)
+                await interaction.edit_original_response(content="You cannot request a training more than 18 days in advance.")
                 return
             unix_central = int(london_dt.timestamp() * 1000)
             unix_before = int((london_dt - timedelta(hours=2, minutes=30)).timestamp() * 1000)
@@ -369,7 +372,7 @@ class Clickup(commands.Cog):
             is_dst = bool(london_dt.dst())
             tz_label = 'BST' if is_dst else 'GMT'
         except Exception as e:
-            await interaction.response.send_message(f"Failed to parse date/time or timezone: {e}", ephemeral=True)
+            await interaction.edit_original_response(content=f"Failed to parse date/time or timezone: {e}")
             return
 
         # Query for overlapping tasks in the 5-hour window
@@ -385,7 +388,7 @@ class Clickup(commands.Cog):
         headers = self.get_clickup_headers()
         response = requests.get(url_check, headers=headers)
         if response.status_code != 200:
-            await interaction.response.send_message("Failed to check ClickUp for overlapping tasks.", ephemeral=True)
+            await interaction.edit_original_response(content="Failed to check ClickUp for overlapping tasks.")
             return
         data = response.json()
         tasks = data.get("tasks", [])
@@ -403,7 +406,7 @@ class Clickup(commands.Cog):
                 if url:
                     name = f"[{name}]({url})"
                 embed.add_field(name="Conflicting training:", value=f"Scheduled for: {due_str}", inline=False)
-            await interaction.response.send_message(embed=embed, ephemeral=True)
+            await interaction.edit_original_response(content=None, embed=embed)
             return
         training_name = f"{day}/{month}/{year} - {day_of_week} - {hour_min} {tz_label} - {roblox_username}"
         url_create = f"https://api.clickup.com/api/v2/list/{list_id}/taskTemplate/{template_id}"
@@ -418,37 +421,54 @@ class Clickup(commands.Cog):
             task = create_resp.json()
             task_id = task.get('id')
             if not task_id:
-                await interaction.response.send_message(f"Training created, but could not retrieve task ID.", ephemeral=True)
+                await interaction.edit_original_response(content="Training created, but could not retrieve task ID.")
                 return
-            # Step 2: Fetch the markdown description
+            # Set due date and assign user by email (if possible)
+            # 1. Set due date
+            url_update = f"https://api.clickup.com/api/v2/task/{task_id}"
+            payload_update = {"due_date": str(unix_central)}
+            requests.put(url_update, headers=headers_create, json=payload_update)
+            # 2. Assign user by email (requires user id)
+            # Fetch ClickUp user id by email
+            user_id = None
+            workspace_id = os.getenv('CLICKUP_WORKSPACE_ID')
+            if workspace_id and clickup_email:
+                user_search_url = f"https://api.clickup.com/api/v2/team/{workspace_id}/user"
+                user_search_resp = requests.get(user_search_url, headers=headers_create)
+                if user_search_resp.status_code == 200:
+                    users_data = user_search_resp.json().get('users', [])
+                    for u in users_data:
+                        if u.get('email', '').lower() == clickup_email.lower():
+                            user_id = u.get('id')
+                            break
+            if user_id:
+                payload_update = {"assignees": {"add": [user_id]}}
+                requests.put(url_update, headers=headers_create, json=payload_update)
+            # Step 3: Fetch the markdown description
             url_get = f"https://api.clickup.com/api/v2/task/{task_id}?include_markdown_description=true"
             get_resp = requests.get(url_get, headers=headers)
             if get_resp.status_code != 200:
-                await interaction.response.send_message(f"Training created, but failed to insert your ROBLOX username in description under Assessment Track A. Everything else is fine.", ephemeral=True)
+                await interaction.edit_original_response(content="Training created, but failed to insert your ROBLOX username in description under Assessment Track A. Everything else is fine.")
                 return
             task_data = get_resp.json()
             markdown = task_data.get('markdown_description') or task_data.get('description')
             if not markdown:
-                await interaction.response.send_message(f"Training created, but no description found to update with your ROBLOX username under Assessment Track A. Everything else is fine.", ephemeral=True)
+                await interaction.edit_original_response(content="Training created, but no description found to update with your ROBLOX username under Assessment Track A. Everything else is fine.")
                 return
-            # Step 3: Insert ROBLOX username after 'Assessor: '
+            # Step 4: Insert ROBLOX username after 'Assessor: '
             import re
-            pattern = r'(#### Assessment Track A\s+Assessor: )(.*)'
-            replacement = r'\1' + roblox_username
+            pattern = r'(#### Assessment Track A\\s+Assessor: )(.*)'
+            replacement = r'\\1' + roblox_username
             new_markdown, count = re.subn(pattern, replacement, markdown, count=1, flags=re.MULTILINE)
             if count == 0:
                 # Fallback: try to find 'Assessor:' line and append username
                 new_markdown = markdown.replace('Assessor: ', f'Assessor: {roblox_username}', 1)
-            # Step 4: Update the description
-            url_update = f"https://api.clickup.com/api/v2/task/{task_id}"
+            # Step 5: Update the description
             payload_update = { "markdown_content": new_markdown }
             update_resp = requests.put(url_update, headers=headers_create, json=payload_update)
             if update_resp.status_code == 200:
-                await interaction.response.send_message(f"Training created successfully!\n{training_name}\nAssessor set to: {roblox_username}", ephemeral=True)
+                await interaction.edit_original_response(content=f"Training created successfully!\n{training_name}\nAssessor set to: {roblox_username}")
             else:
-                await interaction.response.send_message(f"Training created, but failed to update description. ClickUp API response: {update_resp.text}", ephemeral=True)
+                await interaction.edit_original_response(content=f"Training created, but failed to update description. ClickUp API response: {update_resp.text}")
         else:
-            await interaction.response.send_message(f"All your information was valid, but clickup failed to create training. Loser's (ClickUp)'s API response: {create_resp.text}", ephemeral=True)
-
-async def setup(bot):
-    await bot.add_cog(Clickup(bot))
+            await interaction.edit_original_response(content=f"All your information was valid, but clickup failed to create training. Loser's (ClickUp's) API response: {create_resp.text}")

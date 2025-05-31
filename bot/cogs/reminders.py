@@ -302,6 +302,11 @@ class Reminders(commands.Cog):
                 await self.log_to_channel(f"⚙️ [Error] Could not fetch user with discord_id {discord_id} for training reminder: {e}")
                 return None
         task_name = task.get('name', '')
+        # Extract host from task_name (last part after last ' - ')
+        if task_name and ' - ' in task_name:
+            host = task_name.split(' - ')[-1].strip()
+        else:
+            host = ''
         connection = self.get_db_connection()
         cursor = connection.cursor(dictionary=True)
         cursor.execute("SELECT roblox_username, timezone FROM users WHERE discord_id = %s", (discord_id,))
