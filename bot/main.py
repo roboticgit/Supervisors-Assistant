@@ -125,16 +125,31 @@ async def on_message(message):
         except Exception:
             await message.channel.send('Failed to send PM.')
         return
-    # >reset
-    if content.strip() == '>reset':
+    # >restart
+    if content.strip() == '>restart':
         if not is_owner:
             await message.channel.send('You do not have permission to use this command.')
             return
-        await message.channel.send('Clearing slash commands and restarting...')
-        tree.clear_commands(guild=None)
-        await tree.sync()
-        # Restart the bot process
+        await message.channel.send('Restarting bot process...')
         os.execv(sys.executable, ['python'] + sys.argv)
+        return
+    # >clear
+    if content.strip() == '>clear':
+        if not is_owner:
+            await message.channel.send('You do not have permission to use this command.')
+            return
+        await message.channel.send('Clearing all global slash commands...')
+        tree.clear_commands(guild=None)
+        await message.channel.send('All global slash commands have been cleared.')
+        return
+    # >sync
+    if content.strip() == '>sync':
+        if not is_owner:
+            await message.channel.send('You do not have permission to use this command.')
+            return
+        await message.channel.send('Syncing slash commands globally...')
+        await tree.sync()
+        await message.channel.send('Slash commands have been synced globally.')
         return
     # >shutdown
     if content.strip() == '>shutdown':

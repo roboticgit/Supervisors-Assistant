@@ -259,36 +259,59 @@ class Reminders(commands.Cog):
                                 discord_id = user['discord_id']
                                 roblox_username = user['roblox_username']
                                 if any(user.get(field) == 'Not set' for field in ['discord_id', 'roblox_username', 'clickup_email', 'reminder_preferences']):
-                                    await self.log_to_channel(f"⚙️ [Skip] User {discord_id} | {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()} | Missing required user data. Skipping.",
-                                department=dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()
-                            )
+                                    task_id = task.get('id', 'Unknown')
+                                    host = task.get('name', '').split(' - ')[-1].strip() if ' - ' in task.get('name', '') else ''
+                                    due_date = int(task.get('due_date', 0))
+                                    dt = datetime.fromtimestamp(due_date/1000, tz=timezone.utc)
+                                    date_str = dt.strftime('%d/%m/%Y (%A)')
+                                    time_str = dt.strftime('%H:%M %Z')
+                                    unix_ts = int(dt.timestamp())
+                                    task_url = task.get('url') or f"https://app.clickup.com/t/{task_id}"
+                                    await self.log_to_channel(
+                                        f":orange_circle: :gear: **[NoAssignee]** {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()}\n\n|---> Task\n> ID: {task_id}\n> Date: {date_str}\n> Time: {time_str}\n> Adjusted Time: <t:{unix_ts}:f> (<t:{unix_ts}:R>)\n> Host: {host}\n\n|---> Reminder\n> Interval: {label}\n> Result: Missing required user data. Skipping. Assignees: {assignees}",
+                                        department=dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()
+                                    )
                                     continue
                                 if 'training' not in user.get('reminder_preferences', '').lower():
-                                    await self.log_to_channel(f"⚙️ [Skip] User {discord_id} | {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()} | 'training' not in reminder preferences. Skipping.",
-                                department=dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()
-                            )
+                                    task_id = task.get('id', 'Unknown')
+                                    host = task.get('name', '').split(' - ')[-1].strip() if ' - ' in task.get('name', '') else ''
+                                    due_date = int(task.get('due_date', 0))
+                                    dt = datetime.fromtimestamp(due_date/1000, tz=timezone.utc)
+                                    date_str = dt.strftime('%d/%m/%Y (%A)')
+                                    time_str = dt.strftime('%H:%M %Z')
+                                    unix_ts = int(dt.timestamp())
+                                    task_url = task.get('url') or f"https://app.clickup.com/t/{task_id}"
+                                    await self.log_to_channel(
+                                        f":orange_circle: :gear: **[NoAssignee]** {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()}\n\n|---> Task\n> ID: {task_id}\n> Date: {date_str}\n> Time: {time_str}\n> Adjusted Time: <t:{unix_ts}:f> (<t:{unix_ts}:R>)\n> Host: {host}\n\n|---> Reminder\n> Interval: {label}\n> Result: 'training' not in reminder preferences. Skipping. Assignees: {assignees}",
+                                        department=dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()
+                                    )
                                     continue
                                 is_host = roblox_username in task['name']
-                                if embed_num == 4 and not is_host:
-                                    await self.log_to_channel(f"⚙️ [Skip] User {discord_id} | {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()} | 30m reminder only for Host. Skipping.",
-                                department=dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()
-                            )
-                                    continue
-                                if embed_num == 5 and is_host:
-                                    await self.log_to_channel(f"⚙️ [Skip] User {discord_id} | {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()} | 15m reminder only for Co-Host. Skipping.",
-                                department=dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()
-                            )
-                                    continue
                                 # Log sending
-                                due_str = datetime.fromtimestamp(due_date/1000, tz=timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
-                                await self.log_to_channel(f"⚙️ [Send] User {discord_id} | {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()} | Task '{task.get('name','')}' | Due: {due_str} | Reminder: {label} | Type: {'Host' if is_host else 'Co-Host'} | DM will be sent.\n\n# yoohoo over here",
-                                department=dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title())
+                                task_id = task.get('id', 'Unknown')
+                                host = task.get('name', '').split(' - ')[-1].strip() if ' - ' in task.get('name', '') else ''
+                                due_date = int(task.get('due_date', 0))
+                                dt = datetime.fromtimestamp(due_date/1000, tz=timezone.utc)
+                                date_str = dt.strftime('%d/%m/%Y (%A)')
+                                time_str = dt.strftime('%H:%M %Z')
+                                unix_ts = int(dt.timestamp())
+                                task_url = task.get('url') or f"https://app.clickup.com/t/{task_id}"
+                                await self.log_to_channel(
+                                    f":orange_circle: :gear: **[Send]** {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()}\n\n|---> Task\n> ID: {task_id}\n> Date: {date_str}\n> Time: {time_str}\n> Adjusted Time: <t:{unix_ts}:f> (<t:{unix_ts}:R>)\n> Host: {host}\n\n|---> Reminder\n> Interval: {label}\n> Result: DM will be sent. Assignees: {assignees}",
+                                    department=dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()
+                                )
                                 await self.send_training_embed(discord_id, embed_num, task)
-    
                         if not found_user:
-                            due_str = datetime.fromtimestamp(due_date/1000, tz=timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
+                            task_id = task.get('id', 'Unknown')
+                            host = task.get('name', '').split(' - ')[-1].strip() if ' - ' in task.get('name', '') else ''
+                            due_date = int(task.get('due_date', 0))
+                            dt = datetime.fromtimestamp(due_date/1000, tz=timezone.utc)
+                            date_str = dt.strftime('%d/%m/%Y (%A)')
+                            time_str = dt.strftime('%H:%M %Z')
+                            unix_ts = int(dt.timestamp())
+                            task_url = task.get('url') or f"https://app.clickup.com/t/{task_id}"
                             await self.log_to_channel(
-                                f"⚙️ [NoAssignee] {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()} | Task '{task.get('name','')}' | Due: {due_str} | Reminder: {label} | No matching user in DB. Assignees: {assignees}",
+                                f":orange_circle: :gear: **[NoAssignee]** {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()}\n\n|---> Task\n> ID: {task_id}\n> Date: {date_str}\n> Time: {time_str}\n> Adjusted Time: <t:{unix_ts}:f> (<t:{unix_ts}:R>)\n> Host: {host}\n\n|---> Reminder\n> Interval: {label}\n> Result: No matching user in DB. Assignees: {assignees}",
                                 department=dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()
                             )
                         break
