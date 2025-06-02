@@ -60,10 +60,10 @@ class DepartmentMenuView(View):
         self.field = field
         self.cog = cog
         departments = [
-            {"label": "Driving Department", "emoji": "<:QD:1323990343095681095>"},
-            {"label": "Dispatching Department", "emoji": "<:DS:1323990336950767616>"},
-            {"label": "Guarding Department", "emoji": "<:GD:1323990339031269496>"},
-            {"label": "Signalling Department", "emoji": "<:SG:1323990431809142835>"},
+            {"label": "Driving Department", "emoji": "<:QD:1379240904887636128>"},
+            {"label": "Dispatching Department", "emoji": "<:DS:1379240994226307072>"},
+            {"label": "Guarding Department", "emoji": "<:GD:1379241061951733843>"},
+            {"label": "Signalling Department", "emoji": "<:SG:1379241116892795010>"},
             {"label": "None", "emoji": "❌"}
         ]
         self.add_item(discord.ui.Select(

@@ -183,10 +183,10 @@ class Clickup(commands.Cog):
             embed_color = department_colors.get(department, 0xFFFFFF)
 
             department_emojis = {
-                "Driving Department": "<:QD:1323990343095681095>",
-                "Dispatching Department": "<:DS:1323990336950767616>",
-                "Guarding Department": "<:GD:1323990339031269496>",
-                "Signalling Department": "<:SG:1323990431809142835>"
+                "Driving Department": "<:QD:1379240904887636128>",
+                "Dispatching Department": "<:DS:1379240994226307072>",
+                "Guarding Department": "<:GD:1379241061951733843>",
+                "Signalling Department": "<:SG:1379241116892795010>"
             }
             dept_emoji = department_emojis.get(department, "")
             # --- Username-in-title Embed ---
@@ -246,7 +246,7 @@ class Clickup(commands.Cog):
             else:
                 status = f"FAILING {fail_emoji}"
             username_embed.add_field(name="Quota Status", value=status, inline=False)
-            username_embed.set_thumbnail(url="https://cdn.discordapp.com/emojis/1379234447911817439.png")
+            username_embed.set_thumbnail(url="https://cdn.discordapp.com/emojis/1379234412096393337.png")
 
             # --- Total Trainings Embed ---
             cohost_emoji = '<:cohost:1379234447911817439>'
