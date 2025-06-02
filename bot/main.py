@@ -131,7 +131,7 @@ async def on_message(message):
             await message.channel.send('You do not have permission to use this command.')
             return
         await message.channel.send('Clearing slash commands and restarting...')
-        tree.clear_commands()
+        tree.clear_commands(guild=None)
         await tree.sync()
         # Restart the bot process
         os.execv(sys.executable, ['python'] + sys.argv)
