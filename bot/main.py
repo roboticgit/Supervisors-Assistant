@@ -111,14 +111,17 @@ async def on_message(message):
         except Exception:
             await message.channel.send('Usage: >pm [user] [content]')
             return
-        member = message.guild.get_member(user_id)
+        try:
+            member = await bot.fetch_user(user_id)
+        except Exception:
+            member = None
         if not member:
             await message.channel.send('User not found.')
             return
         embed = discord.Embed(title="Message from the Bot Administrator:", description=f"*{embed_content}*", color=discord.Color.gold())
         try:
             await member.send(embed=embed)
-            await message.channel.send(f"PM sent to {member.display_name}.")
+            await message.channel.send(f"PM sent to {member.display_name if hasattr(member, 'display_name') else member.name}.")
         except Exception:
             await message.channel.send('Failed to send PM.')
         return
@@ -127,10 +130,9 @@ async def on_message(message):
         if not is_owner:
             await message.channel.send('You do not have permission to use this command.')
             return
-        await message.channel.send('Resetting bot: clearing slash commands and restarting...')
-        # Clear all slash commands (do not await, it's not a coroutine in discord.py 2.5.2)
-        tree.clear_commands(guild=discord.Object(id=GUILD_ID))
-        await tree.sync(guild=discord.Object(id=GUILD_ID))
+        await message.channel.send('Clearing slash commands and restarting...')
+        tree.clear_commands()
+        await tree.sync()
         # Restart the bot process
         os.execv(sys.executable, ['python'] + sys.argv)
         return
