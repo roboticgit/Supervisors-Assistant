@@ -403,8 +403,10 @@ class SettingsApprovalView(View):
         self.cog = cog
         self.add_item(Button(label="Approve", style=discord.ButtonStyle.success, custom_id="approve"))
         self.add_item(Button(label="Deny", style=discord.ButtonStyle.danger, custom_id="deny"))
+        self.add_item(Button(label="Void", style=discord.ButtonStyle.secondary, custom_id="void"))
 
     async def interaction_check(self, interaction: discord.Interaction):
+        user_id = self.user_id  # Ensure user_id is available for all branches
         if interaction.data['custom_id'] == "approve":
             # Write changes to DB
             connection = get_db_connection()
@@ -427,7 +429,7 @@ class SettingsApprovalView(View):
                     await user.send(embed=embed)
                 except Exception:
                     pass
-            await interaction.response.edit_message(content="Changes approved and applied.", view=None)
+            await interaction.response.edit_message(content=f"# Approved & Applied\n\n<@{user_id}> (Discord ID: {user_id})", view=None)
         elif interaction.data['custom_id'] == "deny":
             # Remove from pending
             pending_settings_changes.pop(self.user_id, None)
@@ -443,7 +445,11 @@ class SettingsApprovalView(View):
                     await user.send(embed=embed)
                 except Exception:
                     pass
-            await interaction.response.edit_message(content="Changes denied.", view=None)
+            await interaction.response.edit_message(content=f"# Denied\n\n<@{user_id}> (Discord ID: {user_id})", view=None)
+        elif interaction.data['custom_id'] == "void":
+            # Remove from pending, do not DM user, just update the message
+            pending_settings_changes.pop(self.user_id, None)
+            await interaction.response.edit_message(content=f"# Voided\n\n<@{user_id}> (Discord ID: {user_id})", view=None)
         return True
 
 async def setup(bot):
