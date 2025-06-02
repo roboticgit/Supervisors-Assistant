@@ -331,27 +331,27 @@ class Reminders(commands.Cog):
                 task_url = "https://app.clickup.com/"
 
         if embed_num == 1:
-            embed = discord.Embed(title=f"Upcoming `{type_str}` in a day", description=f"You have an upcoming `{type_str}` occuring in 24 hours ({date_str}). Now would be a good time to ensure you are available.", color=discord.Color.light_grey())
+            embed = discord.Embed(title=f"Upcoming Training: {"TRAINING HOST" if type_str == host else f"{type_str} at {host}'s training"}", description=f"You have an upcoming `{"HOST" if type_str == host else f"{type_str} at {host}'s training"}` is occuring in 24 hours ({date_str}).\n\n- **Now would be a good time to ensure you are available.**", color=discord.Color.light_grey())
             view = discord.ui.View()
-            view.add_item(discord.ui.Button(label="ClickUp Task", url=task_url))
+            view.add_item(discord.ui.Button(label="Find ClickUp Task", url=task_url))
         elif embed_num == 2:
-            embed = discord.Embed(title=f"Reminder:`{type_str}` in 10 hours", description=f"Your `{type_str}` training is in 10 hours ({date_str}). You should probably set an alarm for this training.", color=discord.Color.light_grey())
+            embed = discord.Embed(title=f"Secondary Reminder: {"TRAINING HOST" if type_str == host else f"{type_str} at {host}'s training"}", description=f"Your `{"HOST" if type_str == host else f"{type_str} at {host}'s training"}` is occuring in 10 hours ({date_str}).\n\n- **You should probably set an alarm for this training.**", color=discord.Color.light_grey())
             view = discord.ui.View()
-            view.add_item(discord.ui.Button(label="ClickUp Task", url=task_url))
+            view.add_item(discord.ui.Button(label="Find ClickUp Task", url=task_url))
         elif embed_num == 3:
-            embed = discord.Embed(title=f"Reminder: `{type_str}` in 2 hours", description=f"Your `{type_str}` is happening in 2 hours. You should double check you've set an alarm for this training, and if you aren't home, now would be a good time to consider returning.", color=discord.Color.blue())
+            embed = discord.Embed(title=f"Get Ready: {"TRAINING HOST" if type_str == host else f"{type_str} at {host}'s training"}", description=f"Your `{type_str}` is happening in 2 hours.\n\n- **You should double check you've set an alarm for this training, and if you aren't home, now would be a good time to consider returning.**", color=discord.Color.blue())
             view = discord.ui.View()
-            view.add_item(discord.ui.Button(label="ClickUp Task", url=task_url))
+            view.add_item(discord.ui.Button(label="Find ClickUp Task", url=task_url))
         elif embed_num == 4:
-            embed = discord.Embed(title="Open Your Training", description=f"Your `{type_str}` is in 30 minutes! Remember to open the server.", color=discord.Color.blue())
+            embed = discord.Embed(title="Open Your TRAINING HOST", description=f"Your `HOST` is in 30 minutes. **Remember to open the server!**", color=discord.Color.orange())
             view = discord.ui.View()
-            view.add_item(discord.ui.Button(label="SCR Server", url="https://www.roblox.com/games/696347899/V2-2-Stepford-County-Railway"))
+            view.add_item(discord.ui.Button(label="Join SCR Server", url="https://www.roblox.com/games/696347899/V2-2-Stepford-County-Railway"))
         elif embed_num == 5:
-            embed = discord.Embed(title="Join Your Training", description=f"Your `{type_str}` is in 15 minutes. Join the server if you have not already!", color=discord.Color.blue())
+            embed = discord.Embed(title=f"Join Training: {type_str} at {host}'s training", description=f"Your `{type_str} at {host}'s training` is in 15 minutes. **Join the server if you have not already!**", color=discord.Color.yellow())
             view = discord.ui.View()
-            view.add_item(discord.ui.Button(label="SCR Server", url="https://www.roblox.com/games/696347899/V2-2-Stepford-County-Railway"))
+            view.add_item(discord.ui.Button(label="Join SCR Server", url="https://www.roblox.com/games/696347899/V2-2-Stepford-County-Railway"))
         else:
-            embed = discord.Embed(title="Training Reminder", description="Unknown timing (but there is a training occuring in 24 hours that you are apart of)", color=discord.Color.light_grey())
+            embed = discord.Embed(title="Training Reminder", description="Unknown timing (but there is a training occuring in 24 hours that you are apart of). Please contact a bot administrator", color=discord.Color.light_grey())
             view = None
         try:
             if view:
