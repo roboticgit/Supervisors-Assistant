@@ -182,13 +182,20 @@ class Clickup(commands.Cog):
             }
             embed_color = department_colors.get(department, 0xFFFFFF)
 
+            department_emojis = {
+                "Driving Department": "<:QD:1323990343095681095>",
+                "Dispatching Department": "<:DS:1323990336950767616>",
+                "Guarding Department": "<:GD:1323990339031269496>",
+                "Signalling Department": "<:SG:1323990431809142835>"
+            }
+            dept_emoji = department_emojis.get(department, "")
             # --- Username-in-title Embed ---
-            host_emoji = '<:host:1375659506809311363>'
+            host_emoji = '<:host:1379234412096393337>'
             fail_emoji = '<:fail:1373358894444707963>'
             ontrack_emoji = '<:ontrack:1373358874136154293>'
             pass_emoji = '<:pass:1373358844499066991>'
             username_embed = discord.Embed(
-                title=f"{department}: Just Hosts",
+                title=f"{dept_emoji} {department}: Just Hosts",
                 color=embed_color
             )
             username_embed.add_field(
@@ -239,12 +246,12 @@ class Clickup(commands.Cog):
             else:
                 status = f"FAILING {fail_emoji}"
             username_embed.add_field(name="Quota Status", value=status, inline=False)
-            username_embed.set_thumbnail(url="https://cdn.discordapp.com/emojis/1375659506809311363.png")
+            username_embed.set_thumbnail(url="https://cdn.discordapp.com/emojis/1379234447911817439.png")
 
             # --- Total Trainings Embed ---
-            cohost_emoji = '<:cohost:1375659520826806305>'
+            cohost_emoji = '<:cohost:1379234447911817439>'
             total_embed = discord.Embed(
-                title=f"{department}: All Trainings",
+                title=f"{dept_emoji} {department}: All Trainings",
                 color=embed_color
             )
             total_embed.add_field(
@@ -294,7 +301,7 @@ class Clickup(commands.Cog):
             else:
                 status = f"FAILING {fail_emoji}"
             total_embed.add_field(name="Quota Status", value=status, inline=False)
-            total_embed.set_thumbnail(url="https://cdn.discordapp.com/emojis/1375659520826806305.png")
+            total_embed.set_thumbnail(url="https://cdn.discordapp.com/emojis/1379234447911817439.png")
 
             # Only send the API result as the main message (edit original response)
             if department == departments[0]:
