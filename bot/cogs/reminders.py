@@ -288,7 +288,21 @@ class Reminders(commands.Cog):
                                 is_host = roblox_username in task['name']
                                 # Log sending
                                 task_id = task.get('id', 'Unknown')
-                                host = task.get('name', '').split(' - ')[-1].strip() if ' - ' in task.get('name', '') else ''
+                                # Extract host from task name for logs
+                                # dept_key is like 'CLICKUP_LIST_ID_DRIVING_DEPARTMENT'
+                                dept_name = dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()
+                                if dept_name == "Driving Department":
+                                    if '•' in task['name']:
+                                        host = task['name'].split('•')[-1].strip()
+                                    elif ' - ' in task['name']:
+                                        host = task['name'].split(' - ')[-1].strip()
+                                    else:
+                                        host = ''
+                                else:
+                                    if ' - ' in task['name']:
+                                        host = task['name'].split(' - ')[-1].strip()
+                                    else:
+                                        host = ''
                                 due_date = int(task.get('due_date', 0))
                                 dt = datetime.fromtimestamp(due_date/1000, tz=timezone.utc)
                                 date_str = dt.strftime('%d/%m/%Y (%A)')
@@ -296,8 +310,8 @@ class Reminders(commands.Cog):
                                 unix_ts = int(dt.timestamp())
                                 task_url = task.get('url') or f"https://app.clickup.com/t/{task_id}"
                                 await self.log_to_channel(
-                                    f":gear: **[Send]** {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()}\n\n|---> Task\n> ID: {task_id}\n> Date: {date_str}\n> Time: {time_str}\n> Adjusted Time: <t:{unix_ts}:f> (<t:{unix_ts}:R>)\n> Host: {host}\n\n|---> Reminder\n> Interval: {label}\n> Result: DM will be sent. Assignees: {assignees}",
-                                    department=dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()
+                                    f":gear: **[Send]** {dept_name}\n\n|---> Task\n> ID: {task_id}\n> Date: {date_str}\n> Time: {time_str}\n> Adjusted Time: <t:{unix_ts}:f> (<t:{unix_ts}:R>)\n> Host: {host}\n\n|---> Reminder\n> Interval: {label}\n> Result: DM will be sent. Assignees: {assignees}",
+                                    department=dept_name
                                 )
                                 await self.send_training_embed(discord_id, embed_num, task)
                         if not found_user:
