@@ -268,7 +268,7 @@ class Reminders(commands.Cog):
                                     unix_ts = int(dt.timestamp())
                                     task_url = task.get('url') or f"https://app.clickup.com/t/{task_id}"
                                     await self.log_to_channel(
-                                        f":orange_circle: :gear: **[NoAssignee]** {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()}\n\n|---> Task\n> ID: {task_id}\n> Date: {date_str}\n> Time: {time_str}\n> Adjusted Time: <t:{unix_ts}:f> (<t:{unix_ts}:R>)\n> Host: {host}\n\n|---> Reminder\n> Interval: {label}\n> Result: Missing required user data. Skipping. Assignees: {assignees}",
+                                        f":gear: **[NoAssignee]** {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()}\n\n|---> Task\n> ID: {task_id}\n> Date: {date_str}\n> Time: {time_str}\n> Adjusted Time: <t:{unix_ts}:f> (<t:{unix_ts}:R>)\n> Host: {host}\n\n|---> Reminder\n> Interval: {label}\n> Result: Missing required user data. Skipping. Assignees: {assignees}",
                                         department=dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()
                                     )
                                     continue
@@ -282,7 +282,7 @@ class Reminders(commands.Cog):
                                     unix_ts = int(dt.timestamp())
                                     task_url = task.get('url') or f"https://app.clickup.com/t/{task_id}"
                                     await self.log_to_channel(
-                                        f":orange_circle: :gear: **[NoAssignee]** {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()}\n\n|---> Task\n> ID: {task_id}\n> Date: {date_str}\n> Time: {time_str}\n> Adjusted Time: <t:{unix_ts}:f> (<t:{unix_ts}:R>)\n> Host: {host}\n\n|---> Reminder\n> Interval: {label}\n> Result: 'training' not in reminder preferences. Skipping. Assignees: {assignees}",
+                                        f":gear: **[NoAssignee]** {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()}\n\n|---> Task\n> ID: {task_id}\n> Date: {date_str}\n> Time: {time_str}\n> Adjusted Time: <t:{unix_ts}:f> (<t:{unix_ts}:R>)\n> Host: {host}\n\n|---> Reminder\n> Interval: {label}\n> Result: 'training' not in reminder preferences. Skipping. Assignees: {assignees}",
                                         department=dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()
                                     )
                                     continue
@@ -297,7 +297,7 @@ class Reminders(commands.Cog):
                                 unix_ts = int(dt.timestamp())
                                 task_url = task.get('url') or f"https://app.clickup.com/t/{task_id}"
                                 await self.log_to_channel(
-                                    f":orange_circle: :gear: **[Send]** {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()}\n\n|---> Task\n> ID: {task_id}\n> Date: {date_str}\n> Time: {time_str}\n> Adjusted Time: <t:{unix_ts}:f> (<t:{unix_ts}:R>)\n> Host: {host}\n\n|---> Reminder\n> Interval: {label}\n> Result: DM will be sent. Assignees: {assignees}",
+                                    f":gear: **[Send]** {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()}\n\n|---> Task\n> ID: {task_id}\n> Date: {date_str}\n> Time: {time_str}\n> Adjusted Time: <t:{unix_ts}:f> (<t:{unix_ts}:R>)\n> Host: {host}\n\n|---> Reminder\n> Interval: {label}\n> Result: DM will be sent. Assignees: {assignees}",
                                     department=dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()
                                 )
                                 await self.send_training_embed(discord_id, embed_num, task)
@@ -311,7 +311,7 @@ class Reminders(commands.Cog):
                             unix_ts = int(dt.timestamp())
                             task_url = task.get('url') or f"https://app.clickup.com/t/{task_id}"
                             await self.log_to_channel(
-                                f":orange_circle: :gear: **[NoAssignee]** {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()}\n\n|---> Task\n> ID: {task_id}\n> Date: {date_str}\n> Time: {time_str}\n> Adjusted Time: <t:{unix_ts}:f> (<t:{unix_ts}:R>)\n> Host: {host}\n\n|---> Reminder\n> Interval: {label}\n> Result: No matching user in DB. Assignees: {assignees}",
+                                f":gear: **[NoAssignee]** {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()}\n\n|---> Task\n> ID: {task_id}\n> Date: {date_str}\n> Time: {time_str}\n> Adjusted Time: <t:{unix_ts}:f> (<t:{unix_ts}:R>)\n> Host: {host}\n\n|---> Reminder\n> Interval: {label}\n> Result: No matching user in DB. Assignees: {assignees}",
                                 department=dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()
                             )
                         break
