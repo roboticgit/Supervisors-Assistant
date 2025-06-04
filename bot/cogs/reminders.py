@@ -104,15 +104,14 @@ class Reminders(commands.Cog):
                 if not list_id:
                     await self.log_to_channel(f"🗓️ No list_id for department {department}")
                     continue
-                from datetime import timezone as dt_timezone, timedelta
-                now = datetime.now(dt_timezone.utc)
-                first_of_month = datetime(year=now.year, month=now.month, day=1, tzinfo=dt_timezone.utc)
+                now = datetime.now(timezone.utc)
+                first_of_month = datetime(year=now.year, month=now.month, day=1, tzinfo=timezone.utc)
                 first_of_month_unix_ms = int(first_of_month.timestamp() * 1000)
                 # Calculate last moment of the month (11:59:59.999 PM UTC)
                 if now.month == 12:
-                    next_month = datetime(year=now.year+1, month=1, day=1, tzinfo=dt_timezone.utc)
+                    next_month = datetime(year=now.year+1, month=1, day=1, tzinfo=timezone.utc)
                 else:
-                    next_month = datetime(year=now.year, month=now.month+1, day=1, tzinfo=dt_timezone.utc)
+                    next_month = datetime(year=now.year, month=now.month+1, day=1, tzinfo=timezone.utc)
                 last_of_month = next_month - timedelta(milliseconds=1)
                 last_of_month_unix_ms = int(last_of_month.timestamp() * 1000)
                 roblox_username = user['roblox_username']
