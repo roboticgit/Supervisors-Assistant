@@ -160,15 +160,15 @@ async def on_message(message):
         await bot.close()
         os._exit(0)
         return
-    # >db [email|roblox_username]
-    if content.startswith('>fetchdb '):
+    # >userfind [email|roblox_username]
+    if content.startswith('>userfind '):
         if not is_owner:
             await message.channel.send('You do not have permission to use this command.')
             return
         try:
             _, query = content.split(maxsplit=1)
         except Exception:
-            await message.channel.send('Usage: >fetchdb [email|roblox_username]')
+            await message.channel.send('Usage: >userfind [email|roblox_username]')
             return
         # Try to find by email first, then roblox_username
         connection = get_db_connection()
