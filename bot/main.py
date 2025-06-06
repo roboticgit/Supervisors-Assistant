@@ -118,7 +118,7 @@ async def on_message(message):
         if not member:
             await message.channel.send('User not found.')
             return
-        embed = discord.Embed(title="Message from the Bot Administrator:", description=f"*{embed_content}*", color=discord.Color.gold())
+        embed = discord.Embed(title="Message from the Bot Administrator:", description=embed_content, color=discord.Color.gold())
         try:
             await member.send(embed=embed)
             await message.channel.send(f"PM sent to {member.display_name if hasattr(member, 'display_name') else member.name}.")
@@ -159,6 +159,38 @@ async def on_message(message):
         await message.channel.send('Shutting down bot...')
         await bot.close()
         os._exit(0)
+        return
+    # >db [email|roblox_username]
+    if content.startswith('>fetchdb '):
+        if not is_owner:
+            await message.channel.send('You do not have permission to use this command.')
+            return
+        try:
+            _, query = content.split(maxsplit=1)
+        except Exception:
+            await message.channel.send('Usage: >fetchdb [email|roblox_username]')
+            return
+        # Try to find by email first, then roblox_username
+        connection = get_db_connection()
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM users WHERE clickup_email = %s OR roblox_username = %s", (query, query))
+        user = cursor.fetchone()
+        connection.close()
+        if not user:
+            await message.channel.send('No user found with that email or ROBLOX username.')
+            return
+        # Format info similar to /settings
+        info = [
+            f"**Discord ID:** {user.get('discord_id', 'N/A')}",
+            f"**ROBLOX Username:** {user.get('roblox_username', 'N/A')}",
+            f"**ClickUp Email:** {user.get('clickup_email', 'N/A')}",
+            f"**Primary Department:** {user.get('primary_department', 'N/A')}",
+            f"**Secondary Department:** {user.get('secondary_department', 'N/A')}",
+            f"**Timezone:** {user.get('timezone', 'N/A')}",
+            f"**Reminder Preferences:** {user.get('reminder_preferences', 'N/A')}",
+        ]
+        embed = discord.Embed(title=f"User DB Info for '{query}'", description='\n'.join(info), color=discord.Color.blue())
+        await message.channel.send(embed=embed, delete_after=120) 
         return
     # >find [taskID]
     if content.startswith('>find '):
