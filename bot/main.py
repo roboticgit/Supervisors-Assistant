@@ -179,18 +179,16 @@ async def on_message(message):
         if not user:
             await message.channel.send('No user found with that email or ROBLOX username.')
             return
-        # Format info similar to /settings
-        info = [
-            f"**Discord ID:** {user.get('discord_id', 'N/A')}",
-            f"**ROBLOX Username:** {user.get('roblox_username', 'N/A')}",
-            f"**ClickUp Email:** {user.get('clickup_email', 'N/A')}",
-            f"**Primary Department:** {user.get('primary_department', 'N/A')}",
-            f"**Secondary Department:** {user.get('secondary_department', 'N/A')}",
-            f"**Timezone:** {user.get('timezone', 'N/A')}",
-            f"**Reminder Preferences:** {user.get('reminder_preferences', 'N/A')}",
-        ]
-        embed = discord.Embed(title=f"User DB Info for '{query}'", description='\n'.join(info), color=discord.Color.blue())
-        await message.channel.send(embed=embed, delete_after=120) 
+        # Format info as embed fields similar to /settings
+        embed = discord.Embed(title=f"User DB Info for `{query}`", color=discord.Color.blue())
+        embed.add_field(name="Discord ID", value=user.get('discord_id', 'N/A'), inline=True)
+        embed.add_field(name="ROBLOX Username", value=user.get('roblox_username', 'N/A'), inline=True)
+        embed.add_field(name="ClickUp Email", value=user.get('clickup_email', 'N/A'), inline=True)
+        embed.add_field(name="Primary Department", value=user.get('primary_department', 'N/A'), inline=True)
+        embed.add_field(name="Secondary Department", value=user.get('secondary_department', 'N/A'), inline=True)
+        embed.add_field(name="Timezone", value=user.get('timezone', 'N/A'), inline=True)
+        embed.add_field(name="Reminder Preferences", value=user.get('reminder_preferences', 'N/A'), inline=True)
+        await message.channel.send(embed=embed, delete_after=120)
         return
     # >find [taskID]
     if content.startswith('>find '):
