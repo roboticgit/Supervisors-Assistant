@@ -326,7 +326,8 @@ class Clickup(commands.Cog):
         connection.close()
 
         # Immediately acknowledge the interaction
-        await interaction.response.send_message("Processing your request...", ephemeral=False)
+        await interaction.response.send_message("Sorry! This command is recieing an upgrade to be more convinient, along with a new command. Please manually create your training until then.", ephemeral=True)
+        return
 
         # Return early if any required field is 'Not set'
         required_fields = ['primary_department', 'clickup_email', 'timezone', 'roblox_username']
