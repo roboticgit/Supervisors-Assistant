@@ -81,15 +81,41 @@ async def on_message(message):
         if not embed_content:
             await message.channel.send('Usage: >publish [content]')
             return
-        # Fetch all users registered in the DB
+        # Build the embed preview
+        embed = discord.Embed(title="Bot Publication:", description=f"{embed_content}", color=discord.Color.purple())
+        class ConfirmView(discord.ui.View):
+            def __init__(self, *, timeout=60):
+                super().__init__(timeout=timeout)
+                self.value = None
+            @discord.ui.button(label="Send", style=discord.ButtonStyle.green)
+            async def send_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+                self.value = True
+                self.stop()
+                await interaction.response.edit_message(content="Sending publication...", view=None)
+            @discord.ui.button(label="Cancel", style=discord.ButtonStyle.red)
+            async def cancel_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+                self.value = False
+                self.stop()
+                await interaction.response.edit_message(content="Publication cancelled.", view=None)
+        view = ConfirmView()
+        preview_msg = await message.channel.send(content="Preview of publication:", embed=embed, view=view)
+        await view.wait()
+        if not view.value:
+            return
+        # Fetch all users registered in the DB, but only those with all required fields set
         connection = get_db_connection()
         cursor = connection.cursor(dictionary=True)
-        cursor.execute("SELECT discord_id FROM users")
+        cursor.execute("SELECT discord_id, roblox_username, clickup_email, primary_department, timezone, reminder_preferences FROM users")
         users = cursor.fetchall()
         connection.close()
-        embed = discord.Embed(title="Bot Update:", description=f"{embed_content}", color=discord.Color.purple())
+        eligible_users = [
+            user for user in users
+            if all(user.get(field) not in (None, 'Not set') for field in [
+                'discord_id', 'roblox_username', 'clickup_email', 'primary_department', 'timezone', 'reminder_preferences']
+            )
+        ]
         sent = 0
-        for user in users:
+        for user in eligible_users:
             try:
                 member = await bot.fetch_user(user['discord_id'])
                 if member:

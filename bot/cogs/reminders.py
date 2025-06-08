@@ -249,9 +249,9 @@ class Reminders(commands.Cog):
                     (15 * 60 * 1000, 5, '15m'),
                 ]
                 london_tz = pytz.timezone('Europe/London')
+                found_user = False  # <-- Move here so it's always defined
                 for ms, embed_num, label in intervals:
                     if due_date - ms <= now_ms < due_date - ms + 60000:
-                        found_user = False
                         for email in assignees:
                             user = user_lookup.get(email)
                             if user:
