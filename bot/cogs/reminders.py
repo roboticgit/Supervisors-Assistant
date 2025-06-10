@@ -313,20 +313,27 @@ class Reminders(commands.Cog):
                                     department=dept_name
                                 )
                                 await self.send_training_embed(discord_id, embed_num, task, dept_name)
-            if not found_user:
-                task_id = task.get('id', 'Unknown')
-                host = task.get('name', '').split(' - ')[-1].strip() if ' - ' in task.get('name', '') else ''
-                due_date = int(task.get('due_date', 0))
-                dt_utc = datetime.fromtimestamp(due_date/1000, tz=timezone.utc)
-                dt_local = dt_utc.astimezone(london_tz)
-                date_str = dt_local.strftime('%d/%m/%Y (%A)')
-                time_str = dt_local.strftime('%H:%M %Z')
-                unix_ts = int(dt_local.timestamp())
-                task_url = task.get('url') or f"https://app.clickup.com/t/{task_id}"
-                await self.log_to_channel(
-                    f":gear: **[NoAssignee]** {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()}\n\n## Task\nID: {task_id}\nDate: {date_str}\nTime: {time_str}\nAdjusted Time: <t:{unix_ts}:f> (<t:{unix_ts}:R>)\n\n## Reminder\nInterval: {label}\nResult: No matching user in DB.\n\n## People\nHost:\n- {host if host else 'N/A'}\n\nAssignees:\n- " + "\n- ".join(assignees),
-                    department=dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()
-                )
+                        if not found_user:
+                            task_id = task.get('id', 'Unknown')
+                            # Host extraction logic (same as above)
+                            task_name = task.get('name', '')
+                            if dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title() == "Driving Department" and '•' in task_name:
+                                host = task_name.split('•')[-1].strip()
+                            elif ' - ' in task_name:
+                                host = task_name.split(' - ')[-1].strip()
+                            else:
+                                host = ''
+                            due_date = int(task.get('due_date', 0))
+                            dt_utc = datetime.fromtimestamp(due_date/1000, tz=timezone.utc)
+                            dt_local = dt_utc.astimezone(london_tz)
+                            date_str = dt_local.strftime('%d/%m/%Y (%A)')
+                            time_str = dt_local.strftime('%H:%M %Z')
+                            unix_ts = int(dt_local.timestamp())
+                            task_url = task.get('url') or f"https://app.clickup.com/t/{task_id}"
+                            await self.log_to_channel(
+                                f":gear: **[NoAssignee]** {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()}\n\n## Task\nID: {task_id}\nDate: {date_str}\nTime: {time_str}\nAdjusted Time: <t:{unix_ts}:f> (<t:{unix_ts}:R>)\n\n## Reminder\nInterval: {label}\nResult: No matching user in DB.\n\n## People\nHost:\n- {host if host else 'N/A'}\n\nAssignees:\n- " + "\n- ".join(assignees),
+                                department=dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()
+                            )
             continue  # Go to next task, do not break out of department loop
 
     async def send_training_embed(self, discord_id, embed_num, task, department=None):
