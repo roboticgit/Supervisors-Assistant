@@ -250,8 +250,10 @@ class Reminders(commands.Cog):
                 ]
                 london_tz = pytz.timezone('Europe/London')
                 found_user = False
+                interval_matched = False
                 for ms, embed_num, label in intervals:
                     if due_date - ms <= now_ms < due_date - ms + 60000:
+                        interval_matched = True
                         for email in assignees:
                             user = user_lookup.get(email)
                             if user:
@@ -325,7 +327,7 @@ class Reminders(commands.Cog):
                     f":gear: **[NoAssignee]** {dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()}\n\n## Task\nID: {task_id}\nDate: {date_str}\nTime: {time_str}\nAdjusted Time: <t:{unix_ts}:f> (<t:{unix_ts}:R>)\n\n## Reminder\nInterval: {label}\nResult: No matching user in DB.\n\n## People\nHost:\n- {host if host else 'N/A'}\n\nAssignees:\n- " + "\n- ".join(assignees),
                     department=dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()
                 )
-            break  # Only break out of the intervals loop, not the tasks or department_keys loop
+            continue  # Go to next task, do not break out of department loop
 
     async def send_training_embed(self, discord_id, embed_num, task, department=None):
         user = self.bot.get_user(discord_id)
