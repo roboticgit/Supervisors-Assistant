@@ -377,16 +377,26 @@ class Reminders(commands.Cog):
             else:
                 task_url = "https://app.clickup.com/"
 
+        # --- FIXED LOGIC: Use type_str directly, not type_str == host ---
         if embed_num == 1:
-            embed = discord.Embed(title=f"Upcoming Training: {"TRAINING HOST" if type_str == host else f"{type_str} at {host}'s training"}", description=f"You have an upcoming `{"HOST" if type_str == host else f"{type_str} at {host}'s training"}` is occuring in 24 hours ({date_str}).\n\n- **Now would be a good time to ensure you are available.**", color=discord.Color.light_grey())
+            if type_str == 'Host':
+                embed = discord.Embed(title=f"Upcoming Training: TRAINING HOST", description=f"You have an upcoming `HOST` occuring in 24 hours ({date_str}).\n\n- **Now would be a good time to ensure you are available.**", color=discord.Color.light_grey())
+            else:
+                embed = discord.Embed(title=f"Upcoming Training: Co-Host at {host}'s training", description=f"You have an upcoming `Co-Host at {host}'s training` occuring in 24 hours ({date_str}).\n\n- **Now would be a good time to ensure you are available.**", color=discord.Color.light_grey())
             view = discord.ui.View()
             view.add_item(discord.ui.Button(label="Find ClickUp Task", url=task_url))
         elif embed_num == 2:
-            embed = discord.Embed(title=f"Secondary Reminder: {"TRAINING HOST" if type_str == host else f"{type_str} at {host}'s training"}", description=f"Your `{"HOST" if type_str == host else f"{type_str} at {host}'s training"}` is occuring in 10 hours ({date_str}).\n\n- **You should probably set an alarm for this training.**", color=discord.Color.light_grey())
+            if type_str == 'Host':
+                embed = discord.Embed(title=f"Secondary Reminder: TRAINING HOST", description=f"Your `HOST` is occuring in 10 hours ({date_str}).\n\n- **You should probably set an alarm for this training.**", color=discord.Color.light_grey())
+            else:
+                embed = discord.Embed(title=f"Secondary Reminder: Co-Host at {host}'s training", description=f"Your `Co-Host at {host}'s training` is occuring in 10 hours ({date_str}).\n\n- **You should probably set an alarm for this training.**", color=discord.Color.light_grey())
             view = discord.ui.View()
             view.add_item(discord.ui.Button(label="Find ClickUp Task", url=task_url))
         elif embed_num == 3:
-            embed = discord.Embed(title=f"Get Ready: {"TRAINING HOST" if type_str == host else f"{type_str} at {host}'s training"}", description=f"Your `{type_str}` is happening in 2 hours.\n\n- **You should double check you've set an alarm for this training, and if you aren't home, now would be a good time to consider returning.**", color=discord.Color.blue())
+            if type_str == 'Host':
+                embed = discord.Embed(title=f"Get Ready: TRAINING HOST", description=f"Your `HOST` is happening in 2 hours.\n\n- **You should double check you've set an alarm for this training, and if you aren't home, now would be a good time to consider returning.**", color=discord.Color.blue())
+            else:
+                embed = discord.Embed(title=f"Get Ready: Co-Host at {host}'s training", description=f"Your `Co-Host` is happening in 2 hours.\n\n- **You should double check you've set an alarm for this training, and if you aren't home, now would be a good time to consider returning.**", color=discord.Color.blue())
             view = discord.ui.View()
             view.add_item(discord.ui.Button(label="Find ClickUp Task", url=task_url))
         elif embed_num == 4:
@@ -394,7 +404,10 @@ class Reminders(commands.Cog):
             view = discord.ui.View()
             view.add_item(discord.ui.Button(label="Join SCR Server", url="https://www.roblox.com/games/696347899/V2-2-Stepford-County-Railway"))
         elif embed_num == 5:
-            embed = discord.Embed(title=f"Join Training: {type_str} at {host}'s training", description=f"Your `{type_str} at {host}'s training` is in 15 minutes. **Join the server if you have not already!**", color=discord.Color.yellow())
+            if type_str == 'Host':
+                embed = discord.Embed(title=f"Join Training: TRAINING HOST", description=f"Your `HOST` is in 15 minutes. **Join the server if you have not already!**", color=discord.Color.yellow())
+            else:
+                embed = discord.Embed(title=f"Join Training: Co-Host at {host}'s training", description=f"Your `Co-Host at {host}'s training` is in 15 minutes. **Join the server if you have not already!**", color=discord.Color.yellow())
             view = discord.ui.View()
             view.add_item(discord.ui.Button(label="Join SCR Server", url="https://www.roblox.com/games/696347899/V2-2-Stepford-County-Railway"))
         else:
