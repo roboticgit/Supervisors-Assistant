@@ -206,8 +206,6 @@ class Reminders(commands.Cog):
             await self.log_to_channel(f"🗓️ Failed to DM user {discord_id} for {department}: {e}")
 
 
-
-
     @tasks.loop(minutes=15)
     async def send_training_reminders(self):
         import requests
