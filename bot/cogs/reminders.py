@@ -424,9 +424,14 @@ class Reminders(commands.Cog):
 
     @send_quota_reminders.before_loop
     async def before_quota_reminders(self):
-        # TEMPORARY: Run immediately, no wait
-        print(f"[Reminders] send_quota_reminders will start immediately (no wait for this run)")
-        # END TEMPORARY
+        now = datetime.now(pytz.UTC)
+        # Calculate next midnight UTC
+        next_run = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        if now >= next_run:
+            next_run += timedelta(days=1)
+        print(f"[Reminders] send_quota_reminders will start at {next_run.strftime('%Y-%m-%d %H:%M:%S UTC')}")
+        await discord.utils.sleep_until(next_run)
+        print(f"[Reminders] send_quota_reminders actually started at {datetime.now(pytz.UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}")
 
     @send_training_reminders.before_loop
     async def before_training_reminders(self):
