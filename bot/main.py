@@ -351,7 +351,6 @@ async def on_message(message):
             await message.channel.send('You do not have permission to use this command.')
             return
         await message.channel.send('Fetching and counting hosts/co-hosts, this may take a moment...')
-        # ClickUp list IDs for all 4 departments
         list_ids = [
             os.getenv('CLICKUP_LIST_ID_DRIVING_DEPARTMENT'),
             os.getenv('CLICKUP_LIST_ID_DISPATCHING_DEPARTMENT'),
@@ -359,45 +358,69 @@ async def on_message(message):
             os.getenv('CLICKUP_LIST_ID_SIGNALLING_DEPARTMENT'),
         ]
         headers = {"Authorization": os.getenv('CLICKUP_API_TOKEN'), "accept": "application/json"}
-        from collections import Counter, defaultdict
+        from collections import Counter
+        from datetime import datetime, timezone, timedelta
+        import pytz
         host_counter = Counter()
         cohost_counter = Counter()
+        total_counter = Counter()
+        now = datetime.now(timezone.utc)
+        first_of_month = datetime(year=now.year, month=now.month, day=1, tzinfo=timezone.utc)
+        first_of_month_unix_ms = int(first_of_month.timestamp() * 1000)
+        seen_task_ids = set()
         for list_id in list_ids:
             if not list_id:
                 continue
-            page = 0
-            while True:
-                url = f"https://api.clickup.com/api/v2/list/{list_id}/task?archived=false&statuses=concluded&statuses=concluded&page={page}"
-                response = requests.get(url, headers=headers)
-                if response.status_code != 200:
-                    break
-                data = response.json()
-                tasks = data.get('tasks', [])
-                if not tasks:
-                    break
-                for task in tasks:
-                    name = task.get('name', '')
-                    assignees = [a.get('username') or a.get('email') or str(a.get('id')) for a in task.get('assignees', [])]
-                    # Host extraction: Driving uses '•', others use ' - '
-                    if '•' in name:
-                        host = name.split('•')[-1].strip()
-                    elif ' - ' in name:
-                        host = name.split(' - ')[-1].strip()
-                    else:
-                        host = ''
-                    if host:
-                        host_counter[host] += 1
-                    for cohost in assignees:
-                        cohost_counter[cohost] += 1
-                if data.get('last_page', False):
-                    break
-                page += 1
-        # Top 10 hosts and co-hosts
+            for archived_value in ["false", "true"]:
+                page = 0
+                while True:
+                    url = (
+                        f"https://api.clickup.com/api/v2/list/{list_id}/task?"
+                        f"archived={archived_value}&"
+                        f"statuses=concluded&"
+                        f"statuses=concluded&"
+                        f"include_closed=true&"
+                        f"due_date_gt={first_of_month_unix_ms}&"
+                        f"page={page}"
+                    )
+                    response = requests.get(url, headers=headers)
+                    if response.status_code != 200:
+                        break
+                    data = response.json()
+                    tasks = data.get('tasks', [])
+                    if not tasks:
+                        break
+                    for task in tasks:
+                        task_id = task.get('id')
+                        if task_id in seen_task_ids:
+                            continue
+                        seen_task_ids.add(task_id)
+                        due_date = task.get('due_date')
+                        if due_date and int(due_date) >= first_of_month_unix_ms:
+                            name = task.get('name', '')
+                            assignees = [a.get('username') or a.get('email') or str(a.get('id')) for a in task.get('assignees', [])]
+                            if '•' in name:
+                                host = name.split('•')[-1].strip()
+                            elif ' - ' in name:
+                                host = name.split(' - ')[-1].strip()
+                            else:
+                                host = ''
+                            if host:
+                                host_counter[host] += 1
+                                total_counter[host] += 1
+                            for cohost in assignees:
+                                cohost_counter[cohost] += 1
+                                total_counter[cohost] += 1
+                    if data.get('last_page', False):
+                        break
+                    page += 1
         top_hosts = host_counter.most_common(10)
         top_cohosts = cohost_counter.most_common(10)
-        embed = discord.Embed(title="Top 10 Trainers (Host & Co-Host)", color=discord.Color.blurple())
+        top_total = total_counter.most_common(10)
+        embed = discord.Embed(title="Top 10 Trainers (Host, Co-Host, Total)", color=discord.Color.blurple())
         embed.add_field(name="Top Hosts", value='\n'.join([f"{i+1}. {name} ({count})" for i, (name, count) in enumerate(top_hosts)]) or 'None', inline=False)
         embed.add_field(name="Top Co-Hosts", value='\n'.join([f"{i+1}. {name} ({count})" for i, (name, count) in enumerate(top_cohosts)]) or 'None', inline=False)
+        embed.add_field(name="Total", value='\n'.join([f"{i+1}. {name} ({count})" for i, (name, count) in enumerate(top_total)]) or 'None', inline=False)
         await message.channel.send(embed=embed)
         return
     await bot.process_commands(message)
