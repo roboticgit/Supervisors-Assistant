@@ -416,7 +416,7 @@ async def on_message(message):
                     page += 1
         top_hosts = host_counter.most_common(0)
         top_cohosts = cohost_counter.most_common(0)
-        top_total = total_counter.most_common(10)
+        top_total = total_counter.most_common(50)
         # Add medals only to Total
         medal_emojis = [":first_place:", ":second_place:", ":third_place:"]
         total_lines = []
@@ -425,8 +425,8 @@ async def on_message(message):
                 total_lines.append(f"{medal_emojis[i]} **{name}** ({count})")
             else:
                 total_lines.append(f"{i+1}. {name} ({count})")
-        embed = discord.Embed(title="Most Active Supervisors This Month", color=discord.Color.blurple())
-        embed.add_field(name="Total Trainings", value='\n'.join(total_lines) or 'None', inline=False)
+        embed = discord.Embed(title="Most Active Supervisors This Month", discription='\n'.join(total_lines) or 'None', color=discord.Color.blurple())
+        #embed.add_field(name="Total Trainings", value='\n'.join(total_lines) or 'None', inline=False)
         #embed.add_field(name="Hosts", value='\n'.join([f"{i+1}. {name} ({count})" for i, (name, count) in enumerate(top_hosts)]) or 'None', inline=False)
         #embed.add_field(name="Co-Hosts", value='\n'.join([f"{i+1}. {name} ({count})" for i, (name, count) in enumerate(top_cohosts)]) or 'None', inline=False)
         await message.channel.send(embed=embed)
