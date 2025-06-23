@@ -205,15 +205,20 @@ async def on_message(message):
         if not user:
             await message.channel.send('No user found with that email or ROBLOX username.')
             return
+        roblox_username = user.get('roblox_username')
+        # Get task counts for this user
+        task_counts = get_roblox_user_task_counts([roblox_username]) if roblox_username else {roblox_username: {'host': 0, 'cohost': 0, 'total': 0}}
+        counts = task_counts.get(roblox_username, {'host': 0, 'cohost': 0, 'total': 0})
         # Format info as embed fields similar to /settings
         embed = discord.Embed(title=f"User DB Info for `{query}`", color=discord.Color.blue())
         embed.add_field(name="Discord ID", value=user.get('discord_id', 'N/A'), inline=True)
-        embed.add_field(name="ROBLOX Username", value=user.get('roblox_username', 'N/A'), inline=True)
+        embed.add_field(name="ROBLOX Username", value=roblox_username or 'N/A', inline=True)
         embed.add_field(name="ClickUp Email", value=user.get('clickup_email', 'N/A'), inline=True)
         embed.add_field(name="Primary Department", value=user.get('primary_department', 'N/A'), inline=True)
         embed.add_field(name="Secondary Department", value=user.get('secondary_department', 'N/A'), inline=True)
         embed.add_field(name="Timezone", value=user.get('timezone', 'N/A'), inline=True)
         embed.add_field(name="Reminder Preferences", value=user.get('reminder_preferences', 'N/A'), inline=True)
+        embed.add_field(name="Tasks This Month", value=f"Host: {counts['host']}\nCo-host: {counts['cohost']}\nTotal: {counts['total']}", inline=False)
         await message.channel.send(embed=embed, delete_after=120)
         return
     # >find [taskID]
@@ -345,8 +350,8 @@ async def on_message(message):
         embed.add_field(name="Description", value=f"```markdown\n{markdown_desc[:1900]}\n```", inline=False)
         await message.channel.send(embed=embed)
         return
-    # >toptrainers
-    if content.strip() == '>toptrainers':
+    # >quota
+    if content.strip() == '>quota':
         if not is_owner:
             await message.channel.send('You do not have permission to use this command.')
             return
@@ -527,6 +532,8 @@ async def on_message(message):
         if not valid_users:
             await message.channel.send('No valid users found.')
             return
+        # Get task counts for all valid users
+        task_counts = get_roblox_user_task_counts(valid_users)
         # Paginate if too many
         page_size = 25
         pages = [valid_users[i:i+page_size] for i in range(0, len(valid_users), page_size)]
@@ -538,7 +545,10 @@ async def on_message(message):
                 self.message = None
             async def update_embed(self, interaction=None):
                 self.refresh_page_label()
-                lines = [f"{i+1+self.page*page_size}. {name}" for i, name in enumerate(pages[self.page])]
+                lines = []
+                for i, name in enumerate(pages[self.page]):
+                    counts = task_counts.get(name, {'host': 0, 'cohost': 0, 'total': 0})
+                    lines.append(f"{i+1+self.page*page_size}. {name} | Host: {counts['host']} | Co-host: {counts['cohost']} | Total: {counts['total']}")
                 embed = discord.Embed(
                     title="ROBLOX Usernames in Database",
                     description='\n'.join(lines) or 'None',
@@ -574,7 +584,10 @@ async def on_message(message):
                 self.children[1].label = f"Page {self.page+1}/{self.max_page+1}"
             async def send(self, channel):
                 self.refresh_page_label()
-                lines = [f"{i+1+self.page*page_size}. {name}" for i, name in enumerate(pages[self.page])]
+                lines = []
+                for i, name in enumerate(pages[self.page]):
+                    counts = task_counts.get(name, {'host': 0, 'cohost': 0, 'total': 0})
+                    lines.append(f"{i+1+self.page*page_size}. {name} | Host: {counts['host']} | Co-host: {counts['cohost']} | Total: {counts['total']}")
                 embed = discord.Embed(
                     title="ROBLOX Usernames in Database",
                     description='\n'.join(lines) or 'None',
@@ -585,6 +598,86 @@ async def on_message(message):
         await paginator.send(message.channel)
         return
     await bot.process_commands(message)
+
+# --- ClickUp Task Counting Utility ---
+def get_roblox_user_task_counts(roblox_usernames):
+    """
+    Returns a dict mapping roblox_username to dict of {'host': int, 'cohost': int, 'total': int}
+    for all usernames in the provided list, using the same logic as >toptrainers.
+    """
+    list_ids = [
+        os.getenv('CLICKUP_LIST_ID_DRIVING_DEPARTMENT'),
+        os.getenv('CLICKUP_LIST_ID_DISPATCHING_DEPARTMENT'),
+        os.getenv('CLICKUP_LIST_ID_GUARDING_DEPARTMENT'),
+        os.getenv('CLICKUP_LIST_ID_SIGNALLING_DEPARTMENT'),
+    ]
+    headers = {"Authorization": os.getenv('CLICKUP_API_TOKEN'), "accept": "application/json"}
+    from collections import Counter
+    from datetime import datetime, timezone
+    import pytz
+    import re
+    now = datetime.now(timezone.utc)
+    first_of_month = datetime(year=now.year, month=now.month, day=1, tzinfo=timezone.utc)
+    first_of_month_unix_ms = int(first_of_month.timestamp() * 1000)
+    seen_task_ids = set()
+    all_tasks = []
+    for list_id in list_ids:
+        if not list_id:
+            continue
+        for archived_value in ["false", "true"]:
+            page = 0
+            while True:
+                url = (
+                    f"https://api.clickup.com/api/v2/list/{list_id}/task?"
+                    f"archived={archived_value}&"
+                    f"statuses=concluded&"
+                    f"statuses=concluded&"
+                    f"include_closed=true&"
+                    f"due_date_gt={first_of_month_unix_ms}&"
+                    f"page={page}"
+                )
+                response = requests.get(url, headers=headers)
+                if response.status_code != 200:
+                    break
+                data = response.json()
+                tasks = data.get('tasks', [])
+                if not tasks:
+                    break
+                for task in tasks:
+                    task_id = task.get('id')
+                    if task_id in seen_task_ids:
+                        continue
+                    seen_task_ids.add(task_id)
+                    due_date = task.get('due_date')
+                    if due_date and int(due_date) >= first_of_month_unix_ms:
+                        all_tasks.append(task)
+                if data.get('last_page', False):
+                    break
+                page += 1
+    # Count hosts/co-hosts for each username
+    host_counter = Counter()
+    cohost_counter = Counter()
+    total_counter = Counter()
+    for task in all_tasks:
+        title = task.get('name', '')
+        desc = task.get('description', '')
+        for roblox_username in roblox_usernames:
+            if roblox_username in desc:
+                if roblox_username in title:
+                    host_counter[roblox_username] += 1
+                    total_counter[roblox_username] += 1
+                else:
+                    cohost_counter[roblox_username] += 1
+                    total_counter[roblox_username] += 1
+    # Build result dict
+    result = {}
+    for username in roblox_usernames:
+        result[username] = {
+            'host': host_counter.get(username, 0),
+            'cohost': cohost_counter.get(username, 0),
+            'total': total_counter.get(username, 0)
+        }
+    return result
 
 # Run the bot
 bot.run(TOKEN)
