@@ -44,7 +44,10 @@ class SimplePaginator(discord.ui.View):
         for item in self.children:
             item.disabled = True
         if self.message:
-            await self.message.edit(view=self)
+            try:
+                await self.message.edit(view=self)
+            except discord.NotFound:
+                pass  # Message was deleted, nothing to update
     def refresh_page_label(self):
         self.children[1].label = f"Page {self.page+1}/{self.max_page+1}"
     async def send(self, channel):
