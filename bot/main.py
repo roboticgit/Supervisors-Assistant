@@ -7,7 +7,7 @@ import mysql.connector
 import sys
 import requests
 import pytz
-from datetime import datetime
+from datetime import datetime, timezone
 
 load_dotenv()
 
@@ -361,19 +361,13 @@ async def on_message(message):
         from collections import Counter
         from datetime import datetime, timezone, timedelta
         import pytz
-        # Fetch all users and their ROBLOX usernames for host/co-host detection
-        connection = get_db_connection()
-        cursor = connection.cursor(dictionary=True)
-        cursor.execute("SELECT roblox_username FROM users WHERE roblox_username IS NOT NULL AND roblox_username != ''")
-        roblox_users = [row['roblox_username'] for row in cursor.fetchall()]
-        connection.close()
-        host_counter = Counter()
-        cohost_counter = Counter()
-        total_counter = Counter()
         now = datetime.now(timezone.utc)
         first_of_month = datetime(year=now.year, month=now.month, day=1, tzinfo=timezone.utc)
         first_of_month_unix_ms = int(first_of_month.timestamp() * 1000)
         seen_task_ids = set()
+        # First pass: collect all ROBLOX usernames from all task descriptions
+        roblox_usernames_set = set()
+        all_tasks = []
         for list_id in list_ids:
             if not list_id:
                 continue
@@ -403,19 +397,31 @@ async def on_message(message):
                         seen_task_ids.add(task_id)
                         due_date = task.get('due_date')
                         if due_date and int(due_date) >= first_of_month_unix_ms:
-                            title = task.get('name', '')
+                            all_tasks.append(task)
                             desc = task.get('description', '')
-                            for roblox_username in roblox_users:
-                                if roblox_username and roblox_username in desc:
-                                    if roblox_username in title:
-                                        host_counter[roblox_username] += 1
-                                        total_counter[roblox_username] += 1
-                                    else:
-                                        cohost_counter[roblox_username] += 1
-                                        total_counter[roblox_username] += 1
+                            # Find all words that look like ROBLOX usernames (alphanumeric, 3-20 chars)
+                            import re
+                            for match in re.findall(r'\b[a-zA-Z0-9_]{3,20}\b', desc):
+                                roblox_usernames_set.add(match)
                     if data.get('last_page', False):
                         break
                     page += 1
+        roblox_users = list(roblox_usernames_set)
+        # Second pass: count hosts/co-hosts using the discovered usernames
+        host_counter = Counter()
+        cohost_counter = Counter()
+        total_counter = Counter()
+        for task in all_tasks:
+            title = task.get('name', '')
+            desc = task.get('description', '')
+            for roblox_username in roblox_users:
+                if roblox_username in desc:
+                    if roblox_username in title:
+                        host_counter[roblox_username] += 1
+                        total_counter[roblox_username] += 1
+                    else:
+                        cohost_counter[roblox_username] += 1
+                        total_counter[roblox_username] += 1
         # Pagination logic for embed
         all_sorted = total_counter.most_common()
         page_size = 10
