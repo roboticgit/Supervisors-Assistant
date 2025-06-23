@@ -3,33 +3,22 @@ from discord.ext import commands
 from discord import Intents, app_commands
 import os
 from dotenv import load_dotenv
-import mysql.connector
 import sys
-import requests
 import pytz
 from datetime import datetime, timezone
+from utils.db import get_db_connection
+from bot.utils.quotafetch import get_roblox_user_task_counts
+import requests
+from utils.paginator import SimplePaginator
 
 load_dotenv()
 
 TOKEN = os.getenv('DISCORD_BOT_TOKEN')
-DB_HOST = os.getenv('DB_HOST')
-DB_USER = os.getenv('DB_USER')
-DB_PASSWORD = os.getenv('DB_PASSWORD')
-DB_NAME = os.getenv('DB_NAME')
 
 # Set up bot with intents and slash commands
 intents = Intents.all()
 bot = commands.Bot(command_prefix='!', intents=intents)
 tree = bot.tree
-
-# Database connection
-def get_db_connection():
-    return mysql.connector.connect(
-        host=DB_HOST,
-        user=DB_USER,
-        password=DB_PASSWORD,
-        database=DB_NAME
-    )
 
 # Event: Bot is ready
 @bot.event
@@ -51,16 +40,52 @@ async def on_member_join(member):
 async def ping(interaction: discord.Interaction):
     import time
     start = time.perf_counter()
-    embed = discord.Embed(title=":ping_pong:", description="", color=discord.Color.dark_grey())
+    unix_start = int(time.time() * 1000)
+    # Send initial response
+    embed = discord.Embed(title=":ping_pong:", description="Pinging...", color=discord.Color.dark_grey())
     await interaction.response.send_message(embed=embed, ephemeral=True)
-    end = time.perf_counter()
-    delay_ms = int((end - start) * 1000)
-    # Edit the original response to include the delay
-    await interaction.edit_original_response(embed=discord.Embed(
-        title=":ping_pong:",
-        description=f"Response delay: `{delay_ms}ms`",
-        color=discord.Color.dark_grey()
-    ))
+    # Internal processing ping
+    process_end = time.perf_counter()
+    process_ping = int((process_end - start) * 1000)
+    # Discord API latency (if available)
+    try:
+        ws_ping = int(bot.latency * 1000)
+    except Exception:
+        ws_ping = None
+    # Fallback: measure time to receive the command and double it
+    now_unix = int(time.time() * 1000)
+    fallback_ping = (now_unix - unix_start) * 2
+    # Shard count
+    try:
+        shard_count = bot.shard_count if hasattr(bot, 'shard_count') and bot.shard_count else 1
+    except Exception:
+        shard_count = 1
+    # Database connection test
+    db_status = 'Unknown'
+    try:
+        conn = get_db_connection()
+        conn.ping(reconnect=True, attempts=1, delay=0)
+        db_status = ':green_circle: Connected'
+        conn.close()
+    except Exception:
+        db_status = ':red_circle: Failed'
+    # Bot profile picture
+    bot_avatar = bot.user.avatar.url if bot.user and bot.user.avatar else None
+    # Bot status/activity
+    activity = bot.activity.name if bot.activity else 'None'
+    # Build embed
+    embed = discord.Embed(title=":ping_pong: Pong!", color=discord.Color.blurple())
+    embed.add_field(name="Internal Processing Ping", value=f"{process_ping}ms", inline=True)
+    if ws_ping is not None:
+        embed.add_field(name="Discord WebSocket Ping", value=f"{ws_ping}ms", inline=True)
+    else:
+        embed.add_field(name="Discord Ping (Fallback)", value=f"{fallback_ping}ms", inline=True)
+    embed.add_field(name="Active Shards", value=str(shard_count), inline=True)
+    embed.add_field(name="Database", value=db_status, inline=True)
+    if bot_avatar:
+        embed.set_thumbnail(url=bot_avatar)
+    embed.set_footer(text=f"Activity: {activity}")
+    await interaction.edit_original_response(embed=embed)
 
 # Text-based commands for the designated guild only
 GUILD_ID = 1373047358648094851  # From user.py
@@ -210,7 +235,7 @@ async def on_message(message):
         task_counts = get_roblox_user_task_counts([roblox_username]) if roblox_username else {roblox_username: {'host': 0, 'cohost': 0, 'total': 0}}
         counts = task_counts.get(roblox_username, {'host': 0, 'cohost': 0, 'total': 0})
         # Format info as embed fields similar to /settings
-        embed = discord.Embed(title=f"User DB Info for `{query}`", color=discord.Color.blue())
+        embed = discord.Embed(title=f"User DB Info for `{query}`", color=discord.Color.blurple())
         embed.add_field(name="Discord ID", value=user.get('discord_id', 'N/A'), inline=True)
         embed.add_field(name="ROBLOX Username", value=roblox_username or 'N/A', inline=True)
         embed.add_field(name="ClickUp Email", value=user.get('clickup_email', 'N/A'), inline=True)
@@ -218,7 +243,7 @@ async def on_message(message):
         embed.add_field(name="Secondary Department", value=user.get('secondary_department', 'N/A'), inline=True)
         embed.add_field(name="Timezone", value=user.get('timezone', 'N/A'), inline=True)
         embed.add_field(name="Reminder Preferences", value=user.get('reminder_preferences', 'N/A'), inline=True)
-        embed.add_field(name="Tasks This Month", value=f"Host: {counts['host']}\nCo-host: {counts['cohost']}\nTotal: {counts['total']}", inline=False)
+        embed.add_field(name="Tasks This Month", value=f"Host: {counts['host']}\nCo-host: {counts['cohost']}\nTotal: {counts['total']}", inline=True)
         await message.channel.send(embed=embed, delete_after=120)
         return
     # >find [taskID]
@@ -356,61 +381,6 @@ async def on_message(message):
             await message.channel.send('You do not have permission to use this command.')
             return
         await message.channel.send('Fetching and counting hosts/co-hosts, this may take a moment...')
-        list_ids = [
-            os.getenv('CLICKUP_LIST_ID_DRIVING_DEPARTMENT'),
-            os.getenv('CLICKUP_LIST_ID_DISPATCHING_DEPARTMENT'),
-            os.getenv('CLICKUP_LIST_ID_GUARDING_DEPARTMENT'),
-            os.getenv('CLICKUP_LIST_ID_SIGNALLING_DEPARTMENT'),
-        ]
-        headers = {"Authorization": os.getenv('CLICKUP_API_TOKEN'), "accept": "application/json"}
-        from collections import Counter
-        from datetime import datetime, timezone, timedelta
-        import pytz
-        now = datetime.now(timezone.utc)
-        first_of_month = datetime(year=now.year, month=now.month, day=1, tzinfo=timezone.utc)
-        first_of_month_unix_ms = int(first_of_month.timestamp() * 1000)
-        seen_task_ids = set()
-        # First pass: collect all ROBLOX usernames from all task descriptions
-        roblox_usernames_set = set()
-        all_tasks = []
-        for list_id in list_ids:
-            if not list_id:
-                continue
-            for archived_value in ["false", "true"]:
-                page = 0
-                while True:
-                    url = (
-                        f"https://api.clickup.com/api/v2/list/{list_id}/task?"
-                        f"archived={archived_value}&"
-                        f"statuses=concluded&"
-                        f"statuses=concluded&"
-                        f"include_closed=true&"
-                        f"due_date_gt={first_of_month_unix_ms}&"
-                        f"page={page}"
-                    )
-                    response = requests.get(url, headers=headers)
-                    if response.status_code != 200:
-                        break
-                    data = response.json()
-                    tasks = data.get('tasks', [])
-                    if not tasks:
-                        break
-                    for task in tasks:
-                        task_id = task.get('id')
-                        if task_id in seen_task_ids:
-                            continue
-                        seen_task_ids.add(task_id)
-                        due_date = task.get('due_date')
-                        if due_date and int(due_date) >= first_of_month_unix_ms:
-                            all_tasks.append(task)
-                            desc = task.get('description', '')
-                            # Find all words that look like ROBLOX usernames (alphanumeric, 3-20 chars)
-                            import re
-                            for match in re.findall(r'\b[a-zA-Z0-9_]{3,20}\b', desc):
-                                roblox_usernames_set.add(match)
-                    if data.get('last_page', False):
-                        break
-                    page += 1
         roblox_users = [
             '12321wesee2', 'Cecelia312', 'emallocz', 'idaaa494', 'Jonedaaa', 'mr_fys', 'newmannly', 'norby_y', 'thebeast5432109', 'TheoCoolGpe',
             'finallybeta', '2ndFran80000000', 'aa_efo', 'ansonye', 'Bull4890vivmas', 'charlton_hbx', 'CHIElevatorman', 'chlpr', 'ComradeArmyyy',
@@ -431,253 +401,19 @@ async def on_message(message):
             'DutchVossi', 'AssortedBaklava', 'Arkadexus', 'colly_oz', 'Ethernel65', 'thecottonn', 'bagg130', 'EatTaco1', 'GL_TongDie',
             'Willmaster453', 'HoustonPlayzRoblox1', 'Sohcool55', 'Iceboy1708', 'RedAl60', 'tom1works', 'jackli0908_HKer', 'AngliaRail'
         ]
-        # Second pass: count hosts/co-hosts using the provided usernames
-        host_counter = Counter()
-        cohost_counter = Counter()
-        total_counter = Counter()
-        for task in all_tasks:
-            title = task.get('name', '')
-            desc = task.get('description', '')
-            for roblox_username in roblox_users:
-                if roblox_username in desc:
-                    if roblox_username in title:
-                        host_counter[roblox_username] += 1
-                        total_counter[roblox_username] += 1
-                    else:
-                        cohost_counter[roblox_username] += 1
-                        total_counter[roblox_username] += 1
-        # Pagination logic for embed
-        # Build a dict of all usernames with their total count (including 0s)
-        all_counts = {username: total_counter.get(username, 0) for username in roblox_users}
-        all_sorted = sorted(all_counts.items(), key=lambda x: x[1], reverse=True)
-        page_size = 20
-        def get_page(page_num):
-            start = page_num * page_size
-            end = start + page_size
-            return all_sorted[start:end]
-        class SupervisorPaginator(discord.ui.View):
-            def __init__(self, *, timeout=120):
-                super().__init__(timeout=timeout)
-                self.page = 0
-                self.max_page = (len(all_sorted) - 1) // page_size if all_sorted else 0
-                self.message = None
-            async def update_embed(self, interaction=None):
-                self.refresh_page_label()
-                page_entries = get_page(self.page)
-                medal_emojis = [":first_place:", ":second_place:", ":third_place:"]
-                lines = []
-                for i, (name, count) in enumerate(page_entries):
-                    if self.page == 0 and i < 3:
-                        lines.append(f"{medal_emojis[i]} **{name}** ({count})")
-                    else:
-                        lines.append(f"{self.page*page_size + i + 1}. {name} ({count})")
-                embed = discord.Embed(
-                    title="Most Active Supervisors This Month",
-                    description='\n'.join(lines) or 'None',
-                    color=discord.Color.blurple()
-                )
-                if interaction:
-                    await interaction.response.edit_message(embed=embed, view=self)
-                else:
-                    await self.message.edit(embed=embed, view=self)
-            @discord.ui.button(emoji='⬅️', style=discord.ButtonStyle.secondary)
-            async def prev(self, interaction: discord.Interaction, button: discord.ui.Button):
-                if self.page > 0:
-                    self.page -= 1
-                else:
-                    self.page = self.max_page
-                await self.update_embed(interaction)
-            @discord.ui.button(label='Page', style=discord.ButtonStyle.secondary, disabled=True)
-            async def page_display(self, interaction: discord.Interaction, button: discord.ui.Button):
-                pass
-            @discord.ui.button(emoji='➡️', style=discord.ButtonStyle.secondary)
-            async def next(self, interaction: discord.Interaction, button: discord.ui.Button):
-                if self.page < self.max_page:
-                    self.page += 1
-                else:
-                    self.page = 0
-                await self.update_embed(interaction)
-            async def on_timeout(self):
-                for item in self.children:
-                    item.disabled = True
-                if self.message:
-                    await self.message.edit(view=self)
-            async def interaction_check(self, interaction: discord.Interaction):
-                return interaction.user == message.author
-            def refresh_page_label(self):
-                self.children[1].label = f"Page {self.page+1}/{self.max_page+1}"
-            async def send(self, channel):
-                self.refresh_page_label()
-                embed = discord.Embed(
-                    title="Most Active Supervisors This Month",
-                    description='\n'.join([f"{':first_place:' if i==0 and self.page==0 else ':second_place:' if i==1 and self.page==0 else ':third_place:' if i==2 and self.page==0 else f'{self.page*page_size + i + 1}.'} **{name}** ({count})" if self.page==0 and i<3 else f"{self.page*page_size + i + 1}. {name} ({count})" for i, (name, count) in enumerate(get_page(self.page))]) or 'None',
-                    color=discord.Color.blurple()
-                )
-                self.message = await channel.send(embed=embed, view=self)
-        paginator = SupervisorPaginator()
+        task_counts = get_roblox_user_task_counts(roblox_users)
+        all_sorted = sorted(((u, task_counts[u]['total']) for u in roblox_users), key=lambda x: x[1], reverse=True)
+        def line_builder(i, tup):
+            name, count = tup
+            medal_emojis = [":first_place:", ":second_place:", ":third_place:"]
+            if i < 3:
+                return f"{medal_emojis[i]} **{name}** ({count})"
+            return f"{i+1}. {name} ({count})"
+        paginator = SimplePaginator(all_sorted, page_size=20, title="Most Active Supervisors This Month", line_builder=line_builder)
         await paginator.send(message.channel)
         return
-    # >list
-    if content.strip() == '>list':
-        if not is_owner:
-            await message.channel.send('You do not have permission to use this command.')
-            return
-        connection = get_db_connection()
-        cursor = connection.cursor(dictionary=True)
-        cursor.execute("SELECT roblox_username, discord_id, clickup_email, primary_department, timezone, reminder_preferences FROM users")
-        users = cursor.fetchall()
-        connection.close()
-        valid_users = [u['roblox_username'] for u in users if all(u.get(field) not in (None, 'Not set') for field in [
-            'roblox_username', 'discord_id', 'clickup_email', 'primary_department', 'timezone', 'reminder_preferences'])]
-        if not valid_users:
-            await message.channel.send('No valid users found.')
-            return
-        # Get task counts for all valid users
-        task_counts = get_roblox_user_task_counts(valid_users)
-        # Paginate if too many
-        page_size = 25
-        pages = [valid_users[i:i+page_size] for i in range(0, len(valid_users), page_size)]
-        class ListPaginator(discord.ui.View):
-            def __init__(self, *, timeout=120):
-                super().__init__(timeout=timeout)
-                self.page = 0
-                self.max_page = len(pages) - 1
-                self.message = None
-            async def update_embed(self, interaction=None):
-                self.refresh_page_label()
-                lines = []
-                for i, name in enumerate(pages[self.page]):
-                    counts = task_counts.get(name, {'host': 0, 'cohost': 0, 'total': 0})
-                    lines.append(f"{i+1+self.page*page_size}. {name} | Host: {counts['host']} | Co-host: {counts['cohost']} | Total: {counts['total']}")
-                embed = discord.Embed(
-                    title="ROBLOX Usernames in Database",
-                    description='\n'.join(lines) or 'None',
-                    color=discord.Color.blurple()
-                )
-                if interaction:
-                    await interaction.response.edit_message(embed=embed, view=self)
-                else:
-                    await self.message.edit(embed=embed, view=self)
-            @discord.ui.button(emoji='⬅️', style=discord.ButtonStyle.secondary)
-            async def prev(self, interaction: discord.Interaction, button: discord.ui.Button):
-                if self.page > 0:
-                    self.page -= 1
-                else:
-                    self.page = self.max_page
-                await self.update_embed(interaction)
-            @discord.ui.button(label='Page', style=discord.ButtonStyle.secondary, disabled=True)
-            async def page_display(self, interaction: discord.Interaction, button: discord.ui.Button):
-                pass
-            @discord.ui.button(emoji='➡️', style=discord.ButtonStyle.secondary)
-            async def next(self, interaction: discord.Interaction, button: discord.ui.Button):
-                if self.page < self.max_page:
-                    self.page += 1
-                else:
-                    self.page = 0
-                await self.update_embed(interaction)
-            async def on_timeout(self):
-                for item in self.children:
-                    item.disabled = True
-                if self.message:
-                    await self.message.edit(view=self)
-            def refresh_page_label(self):
-                self.children[1].label = f"Page {self.page+1}/{self.max_page+1}"
-            async def send(self, channel):
-                self.refresh_page_label()
-                lines = []
-                for i, name in enumerate(pages[self.page]):
-                    counts = task_counts.get(name, {'host': 0, 'cohost': 0, 'total': 0})
-                    lines.append(f"{i+1+self.page*page_size}. {name} | Host: {counts['host']} | Co-host: {counts['cohost']} | Total: {counts['total']}")
-                embed = discord.Embed(
-                    title="ROBLOX Usernames in Database",
-                    description='\n'.join(lines) or 'None',
-                    color=discord.Color.blurple()
-                )
-                self.message = await channel.send(embed=embed, view=self)
-        paginator = ListPaginator()
-        await paginator.send(message.channel)
-        return
-    await bot.process_commands(message)
 
-# --- ClickUp Task Counting Utility ---
-def get_roblox_user_task_counts(roblox_usernames):
-    """
-    Returns a dict mapping roblox_username to dict of {'host': int, 'cohost': int, 'total': int}
-    for all usernames in the provided list, using the same logic as >toptrainers.
-    """
-    list_ids = [
-        os.getenv('CLICKUP_LIST_ID_DRIVING_DEPARTMENT'),
-        os.getenv('CLICKUP_LIST_ID_DISPATCHING_DEPARTMENT'),
-        os.getenv('CLICKUP_LIST_ID_GUARDING_DEPARTMENT'),
-        os.getenv('CLICKUP_LIST_ID_SIGNALLING_DEPARTMENT'),
-    ]
-    headers = {"Authorization": os.getenv('CLICKUP_API_TOKEN'), "accept": "application/json"}
-    from collections import Counter
-    from datetime import datetime, timezone
-    import pytz
-    import re
-    now = datetime.now(timezone.utc)
-    first_of_month = datetime(year=now.year, month=now.month, day=1, tzinfo=timezone.utc)
-    first_of_month_unix_ms = int(first_of_month.timestamp() * 1000)
-    seen_task_ids = set()
-    all_tasks = []
-    for list_id in list_ids:
-        if not list_id:
-            continue
-        for archived_value in ["false", "true"]:
-            page = 0
-            while True:
-                url = (
-                    f"https://api.clickup.com/api/v2/list/{list_id}/task?"
-                    f"archived={archived_value}&"
-                    f"statuses=concluded&"
-                    f"statuses=concluded&"
-                    f"include_closed=true&"
-                    f"due_date_gt={first_of_month_unix_ms}&"
-                    f"page={page}"
-                )
-                response = requests.get(url, headers=headers)
-                if response.status_code != 200:
-                    break
-                data = response.json()
-                tasks = data.get('tasks', [])
-                if not tasks:
-                    break
-                for task in tasks:
-                    task_id = task.get('id')
-                    if task_id in seen_task_ids:
-                        continue
-                    seen_task_ids.add(task_id)
-                    due_date = task.get('due_date')
-                    if due_date and int(due_date) >= first_of_month_unix_ms:
-                        all_tasks.append(task)
-                if data.get('last_page', False):
-                    break
-                page += 1
-    # Count hosts/co-hosts for each username
-    host_counter = Counter()
-    cohost_counter = Counter()
-    total_counter = Counter()
-    for task in all_tasks:
-        title = task.get('name', '')
-        desc = task.get('description', '')
-        for roblox_username in roblox_usernames:
-            if roblox_username in desc:
-                if roblox_username in title:
-                    host_counter[roblox_username] += 1
-                    total_counter[roblox_username] += 1
-                else:
-                    cohost_counter[roblox_username] += 1
-                    total_counter[roblox_username] += 1
-    # Build result dict
-    result = {}
-    for username in roblox_usernames:
-        result[username] = {
-            'host': host_counter.get(username, 0),
-            'cohost': cohost_counter.get(username, 0),
-            'total': total_counter.get(username, 0)
-        }
-    return result
+    await bot.process_commands(message)
 
 # Run the bot
 bot.run(TOKEN)
