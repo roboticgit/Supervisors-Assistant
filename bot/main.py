@@ -442,8 +442,10 @@ async def on_message(message):
                         cohost_counter[roblox_username] += 1
                         total_counter[roblox_username] += 1
         # Pagination logic for embed
-        all_sorted = total_counter.most_common()
-        page_size = 25
+        # Build a dict of all usernames with their total count (including 0s)
+        all_counts = {username: total_counter.get(username, 0) for username in roblox_users}
+        all_sorted = sorted(all_counts.items(), key=lambda x: x[1], reverse=True)
+        page_size = 20
         def get_page(page_num):
             start = page_num * page_size
             end = start + page_size
