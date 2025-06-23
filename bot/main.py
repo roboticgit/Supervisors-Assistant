@@ -345,6 +345,61 @@ async def on_message(message):
         embed.add_field(name="Description", value=f"```markdown\n{markdown_desc[:1900]}\n```", inline=False)
         await message.channel.send(embed=embed)
         return
+    # >toptrainers
+    if content.strip() == '>toptrainers':
+        if not is_owner:
+            await message.channel.send('You do not have permission to use this command.')
+            return
+        await message.channel.send('Fetching and counting hosts/co-hosts, this may take a moment...')
+        # ClickUp list IDs for all 4 departments
+        list_ids = [
+            os.getenv('CLICKUP_LIST_ID_DRIVING_DEPARTMENT'),
+            os.getenv('CLICKUP_LIST_ID_DISPATCHING_DEPARTMENT'),
+            os.getenv('CLICKUP_LIST_ID_GUARDING_DEPARTMENT'),
+            os.getenv('CLICKUP_LIST_ID_SIGNALLING_DEPARTMENT'),
+        ]
+        headers = {"Authorization": os.getenv('CLICKUP_API_TOKEN'), "accept": "application/json"}
+        from collections import Counter, defaultdict
+        host_counter = Counter()
+        cohost_counter = Counter()
+        for list_id in list_ids:
+            if not list_id:
+                continue
+            page = 0
+            while True:
+                url = f"https://api.clickup.com/api/v2/list/{list_id}/task?archived=false&statuses=concluded&statuses=concluded&page={page}"
+                response = requests.get(url, headers=headers)
+                if response.status_code != 200:
+                    break
+                data = response.json()
+                tasks = data.get('tasks', [])
+                if not tasks:
+                    break
+                for task in tasks:
+                    name = task.get('name', '')
+                    assignees = [a.get('username') or a.get('email') or str(a.get('id')) for a in task.get('assignees', [])]
+                    # Host extraction: Driving uses '•', others use ' - '
+                    if '•' in name:
+                        host = name.split('•')[-1].strip()
+                    elif ' - ' in name:
+                        host = name.split(' - ')[-1].strip()
+                    else:
+                        host = ''
+                    if host:
+                        host_counter[host] += 1
+                    for cohost in assignees:
+                        cohost_counter[cohost] += 1
+                if data.get('last_page', False):
+                    break
+                page += 1
+        # Top 10 hosts and co-hosts
+        top_hosts = host_counter.most_common(10)
+        top_cohosts = cohost_counter.most_common(10)
+        embed = discord.Embed(title="Top 10 Trainers (Host & Co-Host)", color=discord.Color.blurple())
+        embed.add_field(name="Top Hosts", value='\n'.join([f"{i+1}. {name} ({count})" for i, (name, count) in enumerate(top_hosts)]) or 'None', inline=False)
+        embed.add_field(name="Top Co-Hosts", value='\n'.join([f"{i+1}. {name} ({count})" for i, (name, count) in enumerate(top_cohosts)]) or 'None', inline=False)
+        await message.channel.send(embed=embed)
+        return
     await bot.process_commands(message)
 
 # Run the bot
