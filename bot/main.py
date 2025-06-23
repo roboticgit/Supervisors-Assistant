@@ -405,10 +405,11 @@ async def on_message(message):
         all_sorted = sorted(((u, task_counts[u]['total']) for u in roblox_users), key=lambda x: x[1], reverse=True)
         def line_builder(i, tup):
             name, count = tup
-            medal_emojis = [":first_place:", ":second_place:", ":third_place:"]
-            if i < 3:
+            # Only show medal emojis on the first page
+            if paginator.page == 0 and i < 3:
+                medal_emojis = [":first_place:", ":second_place:", ":third_place:"]
                 return f"{medal_emojis[i]} **{name}** ({count})"
-            return f"{i+1}. {name} ({count})"
+            return f"{i+1 + paginator.page * paginator.page_size}. {name} ({count})"
         paginator = SimplePaginator(all_sorted, page_size=20, title="Most Active Supervisors This Month", line_builder=line_builder)
         await paginator.send(message.channel)
         return
