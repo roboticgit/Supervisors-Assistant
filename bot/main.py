@@ -443,7 +443,7 @@ async def on_message(message):
                         total_counter[roblox_username] += 1
         # Pagination logic for embed
         all_sorted = total_counter.most_common()
-        page_size = 10
+        page_size = 25
         def get_page(page_num):
             start = page_num * page_size
             end = start + page_size
@@ -452,9 +452,10 @@ async def on_message(message):
             def __init__(self, *, timeout=120):
                 super().__init__(timeout=timeout)
                 self.page = 0
-                self.max_page = (len(all_sorted) - 1) // page_size
+                self.max_page = (len(all_sorted) - 1) // page_size if all_sorted else 0
                 self.message = None
             async def update_embed(self, interaction=None):
+                self.refresh_page_label()
                 page_entries = get_page(self.page)
                 medal_emojis = [":first_place:", ":second_place:", ":third_place:"]
                 lines = []
@@ -476,7 +477,9 @@ async def on_message(message):
             async def prev(self, interaction: discord.Interaction, button: discord.ui.Button):
                 if self.page > 0:
                     self.page -= 1
-                    await self.update_embed(interaction)
+                else:
+                    self.page = self.max_page
+                await self.update_embed(interaction)
             @discord.ui.button(label='Page', style=discord.ButtonStyle.secondary, disabled=True)
             async def page_display(self, interaction: discord.Interaction, button: discord.ui.Button):
                 pass
@@ -484,7 +487,9 @@ async def on_message(message):
             async def next(self, interaction: discord.Interaction, button: discord.ui.Button):
                 if self.page < self.max_page:
                     self.page += 1
-                    await self.update_embed(interaction)
+                else:
+                    self.page = 0
+                await self.update_embed(interaction)
             async def on_timeout(self):
                 for item in self.children:
                     item.disabled = True
