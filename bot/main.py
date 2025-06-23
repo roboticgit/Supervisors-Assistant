@@ -406,8 +406,27 @@ async def on_message(message):
                     if data.get('last_page', False):
                         break
                     page += 1
-        roblox_users = list(roblox_usernames_set)
-        # Second pass: count hosts/co-hosts using the discovered usernames
+        roblox_users = [
+            '12321wesee2', 'Cecelia312', 'emallocz', 'idaaa494', 'Jonedaaa', 'mr_fys', 'newmannly', 'norby_y', 'thebeast5432109', 'TheoCoolGpe',
+            'finallybeta', '2ndFran80000000', 'aa_efo', 'ansonye', 'Bull4890vivmas', 'charlton_hbx', 'CHIElevatorman', 'chlpr', 'ComradeArmyyy',
+            'DeadlyGrandmx', 'DokiDotto', 'DrivingPro63', 'EMU3001_Ouo', 'Extraabyte', 'I_iApple', 'Imnotan_furry', 'InspectorX59', 'Jonsy0930',
+            'jurre12124', 'Ka1yen', 'KoalasNattion', 'Littlechocolate3003', 'lucasXD12327', 'lvekis', 'minjaehong2170', 'MoinALTC', 'moscowcode',
+            'mrprojl9', 'NotFinn5', 'odlegodo', 'ORollerO', 'play333222', 'polaris65536', 'Pxndx1606', 'quite_mortified', 'Robotic_dony2468',
+            'rorow122', 'Storrrent', 'Tobsenheimer', 'Walruses_XD', 'whyevenbothernaming', 'ZedZeeGamer246', '111DannySun', '1TopGTejas',
+            '656Cam_GamesReal', 'AbsurdlySmrt', 'AdrianPH624', 'Adrixn0_0', 'Alanek_Alanek', 'AVeryRomanlanHolder', 'CounterBoxes', 'cristi22991',
+            'Daan_oontje', 'Demon368xd', 'DJ_Techno1', 'djl_dev', 'Emilsen_2', 'holyHeccCapybara', 'intoxicanto1', 'JanEisJan', 'JumpoutPlayz',
+            'kmb_Route934', 'Matthew_19104303', 'Movies22_byTR', 'obi0kenobi', 'Pilots_s', 'purpalyo1234', 'qxPeter', 'Smiling_Tokyo',
+            'SolidRedLine', 'SplitYourGamming10', 'SquadFam_9000', 'SquidwardHasDementia', 'suwu27ejdud', 'TheOptimistic_Legend',
+            'TheSlavicBeastXD', 'tsilenced', 'VoidyTheReblard', 'WorstLiam8312', 'x_hal3', 'Yengamertv', 'YourDailyMoose', 'BoiledAnchovies',
+            'BrendonUrieFrom_PATD', 'codelyokop', 'CriticalErrxr', 'DeepBlue4210', 'deluoi945', 'Endz0Blendz0', 'flippy12052004', 'InhumanDoosh',
+            'PeppyThePingu', 'Starquius', 'Stigon_0', 'STM_RBLX', 'yiuivan05', 'ak220905', 'BeaverCop2007', 'Calli656', 'eamonnthediamond',
+            'Edoebzd', 'GroundskeeperHagrid', 'iProtaqonist', 'isaaccfchu', 'JakovSonBJ', 'TheYannick25', 'mqxtty', 'PhotoBlockTrollz',
+            'RLSJ1997', 'slippyrails1', 'ssbninja', 'TakoThe_Taco', 'TheRandomDutchLad', 'WurstSemmelKopf', 'THEEXILENTGAMER',
+            'SkibidiHawkTuahRizz7', 'Gabrieliito9', 'Nojus_Sushis', 'RB54d', 'comfled', 'NotOreo9', 'Fighter_Boy113', 'reflqctnl', 'Real_SK8R',
+            'DutchVossi', 'AssortedBaklava', 'Arkadexus', 'colly_oz', 'Ethernel65', 'thecottonn', 'bagg130', 'EatTaco1', 'GL_TongDie',
+            'Willmaster453', 'HoustonPlayzRoblox1', 'Sohcool55', 'Iceboy1708', 'RedAl60', 'tom1works', 'jackli0908_HKer', 'AngliaRail'
+        ]
+        # Second pass: count hosts/co-hosts using the provided usernames
         host_counter = Counter()
         cohost_counter = Counter()
         total_counter = Counter()
