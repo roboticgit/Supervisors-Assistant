@@ -165,12 +165,12 @@ class Reminders(commands.Cog):
                     if concluded_total < 1:
                         found_to_send = True
                         await self.log_to_channel(f"\U0001F5D3 [Trigger] User {discord_id} | {department} | Day {day_of_month}: <1 Host/CoHost completed. Sending reminder.")
-                        await self.send_reminder(discord_id, department, day_of_month)
+                        await self.send_reminder(discord_id, department)
                 elif days_left in [7, 3]:
                     if concluded_total < 8 or concluded_username < host_required:
                         found_to_send = True
                         await self.log_to_channel(f"\U0001F5D3 [Trigger] User {discord_id} | {department} | {days_left} days left: <8 Host/CoHost or <{host_required} Host completed. Sending reminder.")
-                        await self.send_reminder(discord_id, department, days_left)
+                        await self.send_reminder(discord_id, department)
                 if found_to_send:
                     await self.log_to_channel(f"\U0001F5D3 [DM] Reminder sent to user {discord_id} for {department} (criteria met)")
 
@@ -424,14 +424,9 @@ class Reminders(commands.Cog):
 
     @send_quota_reminders.before_loop
     async def before_quota_reminders(self):
-        now = datetime.now(pytz.UTC)
-        # Calculate next midnight UTC
-        next_run = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        if now >= next_run:
-            next_run += timedelta(days=1)
-        print(f"[Reminders] send_quota_reminders will start at {next_run.strftime('%Y-%m-%d %H:%M:%S UTC')}")
-        await discord.utils.sleep_until(next_run)
-        print(f"[Reminders] send_quota_reminders actually started at {datetime.now(pytz.UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}")
+        # TEMPORARY: Run immediately, no wait
+        print(f"[Reminders] send_quota_reminders will start immediately (no wait for this run)")
+        # END TEMPORARY
 
     @send_training_reminders.before_loop
     async def before_training_reminders(self):
