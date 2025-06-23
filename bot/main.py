@@ -512,6 +512,78 @@ async def on_message(message):
         paginator = SupervisorPaginator()
         await paginator.send(message.channel)
         return
+    # >list
+    if content.strip() == '>list':
+        if not is_owner:
+            await message.channel.send('You do not have permission to use this command.')
+            return
+        connection = get_db_connection()
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute("SELECT roblox_username, discord_id, clickup_email, primary_department, timezone, reminder_preferences FROM users")
+        users = cursor.fetchall()
+        connection.close()
+        valid_users = [u['roblox_username'] for u in users if all(u.get(field) not in (None, 'Not set') for field in [
+            'roblox_username', 'discord_id', 'clickup_email', 'primary_department', 'timezone', 'reminder_preferences'])]
+        if not valid_users:
+            await message.channel.send('No valid users found.')
+            return
+        # Paginate if too many
+        page_size = 25
+        pages = [valid_users[i:i+page_size] for i in range(0, len(valid_users), page_size)]
+        class ListPaginator(discord.ui.View):
+            def __init__(self, *, timeout=120):
+                super().__init__(timeout=timeout)
+                self.page = 0
+                self.max_page = len(pages) - 1
+                self.message = None
+            async def update_embed(self, interaction=None):
+                self.refresh_page_label()
+                lines = [f"{i+1+self.page*page_size}. {name}" for i, name in enumerate(pages[self.page])]
+                embed = discord.Embed(
+                    title="ROBLOX Usernames in Database",
+                    description='\n'.join(lines) or 'None',
+                    color=discord.Color.blurple()
+                )
+                if interaction:
+                    await interaction.response.edit_message(embed=embed, view=self)
+                else:
+                    await self.message.edit(embed=embed, view=self)
+            @discord.ui.button(emoji='⬅️', style=discord.ButtonStyle.secondary)
+            async def prev(self, interaction: discord.Interaction, button: discord.ui.Button):
+                if self.page > 0:
+                    self.page -= 1
+                else:
+                    self.page = self.max_page
+                await self.update_embed(interaction)
+            @discord.ui.button(label='Page', style=discord.ButtonStyle.secondary, disabled=True)
+            async def page_display(self, interaction: discord.Interaction, button: discord.ui.Button):
+                pass
+            @discord.ui.button(emoji='➡️', style=discord.ButtonStyle.secondary)
+            async def next(self, interaction: discord.Interaction, button: discord.ui.Button):
+                if self.page < self.max_page:
+                    self.page += 1
+                else:
+                    self.page = 0
+                await self.update_embed(interaction)
+            async def on_timeout(self):
+                for item in self.children:
+                    item.disabled = True
+                if self.message:
+                    await self.message.edit(view=self)
+            def refresh_page_label(self):
+                self.children[1].label = f"Page {self.page+1}/{self.max_page+1}"
+            async def send(self, channel):
+                self.refresh_page_label()
+                lines = [f"{i+1+self.page*page_size}. {name}" for i, name in enumerate(pages[self.page])]
+                embed = discord.Embed(
+                    title="ROBLOX Usernames in Database",
+                    description='\n'.join(lines) or 'None',
+                    color=discord.Color.blurple()
+                )
+                self.message = await channel.send(embed=embed, view=self)
+        paginator = ListPaginator()
+        await paginator.send(message.channel)
+        return
     await bot.process_commands(message)
 
 # Run the bot
