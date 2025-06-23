@@ -425,7 +425,7 @@ async def on_message(message):
                 total_lines.append(f"{medal_emojis[i]} **{name}** ({count})")
             else:
                 total_lines.append(f"{i+1}. {name} ({count})")
-        embed = discord.Embed(title="Most Active Supervisors This Month", discription='\n'.join(total_lines) or 'None', color=discord.Color.blurple())
+        embed = discord.Embed(title="Most Active Supervisors This Month", description='\n'.join(total_lines) or 'None', color=discord.Color.blurple())
         #embed.add_field(name="Total Trainings", value='\n'.join(total_lines) or 'None', inline=False)
         #embed.add_field(name="Hosts", value='\n'.join([f"{i+1}. {name} ({count})" for i, (name, count) in enumerate(top_hosts)]) or 'None', inline=False)
         #embed.add_field(name="Co-Hosts", value='\n'.join([f"{i+1}. {name} ({count})" for i, (name, count) in enumerate(top_cohosts)]) or 'None', inline=False)
