@@ -414,13 +414,21 @@ async def on_message(message):
                     if data.get('last_page', False):
                         break
                     page += 1
-        top_hosts = host_counter.most_common(10)
-        top_cohosts = cohost_counter.most_common(10)
-        top_total = total_counter.most_common(10)
-        embed = discord.Embed(title="Top 10 Trainers (Host, Co-Host, Total)", color=discord.Color.blurple())
-        embed.add_field(name="Top Hosts", value='\n'.join([f"{i+1}. {name} ({count})" for i, (name, count) in enumerate(top_hosts)]) or 'None', inline=False)
-        embed.add_field(name="Top Co-Hosts", value='\n'.join([f"{i+1}. {name} ({count})" for i, (name, count) in enumerate(top_cohosts)]) or 'None', inline=False)
-        embed.add_field(name="Total", value='\n'.join([f"{i+1}. {name} ({count})" for i, (name, count) in enumerate(top_total)]) or 'None', inline=False)
+        top_hosts = host_counter.most_common(5)
+        top_cohosts = cohost_counter.most_common(5)
+        top_total = total_counter.most_common(5)
+        # Add medals only to Total
+        medal_emojis = [":first_place:", ":second_place:", ":third_place:"]
+        total_lines = []
+        for i, (name, count) in enumerate(top_total):
+            if i < 3:
+                total_lines.append(f"{medal_emojis[i]} {name} ({count})")
+            else:
+                total_lines.append(f"{i+1}. {name} ({count})")
+        embed = discord.Embed(title="Top 5 Most Active Supervisors", color=discord.Color.blurple())
+        embed.add_field(name="Total", value='\n'.join(total_lines) or 'None', inline=False)
+        embed.add_field(name="Hosts", value='\n'.join([f"{i+1}. {name} ({count})" for i, (name, count) in enumerate(top_hosts)]) or 'None', inline=False)
+        embed.add_field(name="Co-Hosts", value='\n'.join([f"{i+1}. {name} ({count})" for i, (name, count) in enumerate(top_cohosts)]) or 'None', inline=False)
         await message.channel.send(embed=embed)
         return
     await bot.process_commands(message)
