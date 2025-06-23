@@ -361,6 +361,12 @@ async def on_message(message):
         from collections import Counter
         from datetime import datetime, timezone, timedelta
         import pytz
+        # Fetch all users and their ROBLOX usernames for host/co-host detection
+        connection = get_db_connection()
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute("SELECT roblox_username FROM users WHERE roblox_username IS NOT NULL AND roblox_username != ''")
+        roblox_users = [row['roblox_username'] for row in cursor.fetchall()]
+        connection.close()
         host_counter = Counter()
         cohost_counter = Counter()
         total_counter = Counter()
@@ -397,39 +403,82 @@ async def on_message(message):
                         seen_task_ids.add(task_id)
                         due_date = task.get('due_date')
                         if due_date and int(due_date) >= first_of_month_unix_ms:
-                            name = task.get('name', '')
-                            assignees = [a.get('username') or a.get('email') or str(a.get('id')) for a in task.get('assignees', [])]
-                            if '•' in name:
-                                host = name.split('•')[-1].strip()
-                            elif ' - ' in name:
-                                host = name.split(' - ')[-1].strip()
-                            else:
-                                host = ''
-                            if host:
-                                host_counter[host] += 1
-                                total_counter[host] += 1
-                            for cohost in assignees:
-                                cohost_counter[cohost] += 1
-                                total_counter[cohost] += 1
+                            title = task.get('name', '')
+                            desc = task.get('description', '')
+                            for roblox_username in roblox_users:
+                                if roblox_username and roblox_username in desc:
+                                    if roblox_username in title:
+                                        host_counter[roblox_username] += 1
+                                        total_counter[roblox_username] += 1
+                                    else:
+                                        cohost_counter[roblox_username] += 1
+                                        total_counter[roblox_username] += 1
                     if data.get('last_page', False):
                         break
                     page += 1
-        top_hosts = host_counter.most_common(0)
-        top_cohosts = cohost_counter.most_common(0)
-        top_total = total_counter.most_common(50)
-        # Add medals only to Total
-        medal_emojis = [":first_place:", ":second_place:", ":third_place:"]
-        total_lines = []
-        for i, (name, count) in enumerate(top_total):
-            if i < 3:
-                total_lines.append(f"{medal_emojis[i]} **{name}** ({count})")
-            else:
-                total_lines.append(f"{i+1}. {name} ({count})")
-        embed = discord.Embed(title="Most Active Supervisors This Month", description='\n'.join(total_lines) or 'None', color=discord.Color.blurple())
-        #embed.add_field(name="Total Trainings", value='\n'.join(total_lines) or 'None', inline=False)
-        #embed.add_field(name="Hosts", value='\n'.join([f"{i+1}. {name} ({count})" for i, (name, count) in enumerate(top_hosts)]) or 'None', inline=False)
-        #embed.add_field(name="Co-Hosts", value='\n'.join([f"{i+1}. {name} ({count})" for i, (name, count) in enumerate(top_cohosts)]) or 'None', inline=False)
-        await message.channel.send(embed=embed)
+        # Pagination logic for embed
+        all_sorted = total_counter.most_common()
+        page_size = 10
+        def get_page(page_num):
+            start = page_num * page_size
+            end = start + page_size
+            return all_sorted[start:end]
+        class SupervisorPaginator(discord.ui.View):
+            def __init__(self, *, timeout=120):
+                super().__init__(timeout=timeout)
+                self.page = 0
+                self.max_page = (len(all_sorted) - 1) // page_size
+                self.message = None
+            async def update_embed(self, interaction=None):
+                page_entries = get_page(self.page)
+                medal_emojis = [":first_place:", ":second_place:", ":third_place:"]
+                lines = []
+                for i, (name, count) in enumerate(page_entries):
+                    if self.page == 0 and i < 3:
+                        lines.append(f"{medal_emojis[i]} **{name}** ({count})")
+                    else:
+                        lines.append(f"{self.page*page_size + i + 1}. {name} ({count})")
+                embed = discord.Embed(
+                    title="Most Active Supervisors This Month",
+                    description='\n'.join(lines) or 'None',
+                    color=discord.Color.blurple()
+                )
+                if interaction:
+                    await interaction.response.edit_message(embed=embed, view=self)
+                else:
+                    await self.message.edit(embed=embed, view=self)
+            @discord.ui.button(emoji='⬅️', style=discord.ButtonStyle.secondary)
+            async def prev(self, interaction: discord.Interaction, button: discord.ui.Button):
+                if self.page > 0:
+                    self.page -= 1
+                    await self.update_embed(interaction)
+            @discord.ui.button(label='Page', style=discord.ButtonStyle.secondary, disabled=True)
+            async def page_display(self, interaction: discord.Interaction, button: discord.ui.Button):
+                pass
+            @discord.ui.button(emoji='➡️', style=discord.ButtonStyle.secondary)
+            async def next(self, interaction: discord.Interaction, button: discord.ui.Button):
+                if self.page < self.max_page:
+                    self.page += 1
+                    await self.update_embed(interaction)
+            async def on_timeout(self):
+                for item in self.children:
+                    item.disabled = True
+                if self.message:
+                    await self.message.edit(view=self)
+            async def interaction_check(self, interaction: discord.Interaction):
+                return interaction.user == message.author
+            def refresh_page_label(self):
+                self.children[1].label = f"Page {self.page+1}/{self.max_page+1}"
+            async def send(self, channel):
+                self.refresh_page_label()
+                embed = discord.Embed(
+                    title="Most Active Supervisors This Month",
+                    description='\n'.join([f"{':first_place:' if i==0 and self.page==0 else ':second_place:' if i==1 and self.page==0 else ':third_place:' if i==2 and self.page==0 else f'{self.page*page_size + i + 1}.'} **{name}** ({count})" if self.page==0 and i<3 else f"{self.page*page_size + i + 1}. {name} ({count})" for i, (name, count) in enumerate(get_page(self.page))]) or 'None',
+                    color=discord.Color.blurple()
+                )
+                self.message = await channel.send(embed=embed, view=self)
+        paginator = SupervisorPaginator()
+        await paginator.send(message.channel)
         return
     await bot.process_commands(message)
 
