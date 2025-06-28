@@ -224,11 +224,11 @@ class Reminders(commands.Cog):
         users = cursor.fetchall()
         connection.close()
         user_lookup = {u['clickup_email']: u for u in users if u['clickup_email'] not in (None, 'Not set')}
+        london_tz = pytz.timezone('Europe/London')
         for dept_key in department_keys:
             list_id = os.getenv(dept_key)
             if not list_id:
                 continue
-
             url = f"https://api.clickup.com/api/v2/list/{list_id}/task?archived=false&statuses=scheduled&statuses=scheduled&due_date_lt={unix_25h_away}"
             headers = {"Authorization": os.getenv('CLICKUP_API_TOKEN'), "accept": "application/json"}
             response = requests.get(url, headers=headers)
@@ -245,24 +245,42 @@ class Reminders(commands.Cog):
                     (10 * 60 * 60 * 1000, 2, '10h'),
                     (2 * 60 * 60 * 1000, 3, '2h'),
                 ]
-                london_tz = pytz.timezone('Europe/London')
-                # For each assignee, determine if they are host or cohost for last-minute reminders
+                # Last-minute reminders (30m host, 15m cohost)
                 for email in assignees:
                     user = user_lookup.get(email)
-                    if not user:
-                        continue
-                    discord_id = user['discord_id']
-                    roblox_username = user['roblox_username']
-                    task_id = task.get('id')
-                    key = (discord_id, task_id)
-                    # Determine host
+                    task_id = task.get('id', 'Unknown')
                     task_name = task.get('name', '')
-                    if dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title() == "Driving Department" and '•' in task_name:
+                    dept_name = dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()
+                    # Host extraction logic
+                    if dept_name == "Driving Department" and '•' in task_name:
                         host = task_name.split('•')[-1].strip()
                     elif ' - ' in task_name:
                         host = task_name.split(' - ')[-1].strip()
                     else:
                         host = ''
+                    # Format date/time for logs
+                    dt_utc = datetime.fromtimestamp(due_date/1000, tz=timezone.utc)
+                    dt_local = dt_utc.astimezone(london_tz)
+                    date_str = dt_local.strftime('%d/%m/%Y (%A)')
+                    time_str = dt_local.strftime('%H:%M %Z')
+                    unix_ts = int(dt_local.timestamp())
+                    task_url = task.get('url') or f"https://app.clickup.com/t/{task_id}"
+                    # Check for missing user data
+                    if not user or any(user.get(field) == 'Not set' for field in ['discord_id', 'roblox_username', 'clickup_email', 'reminder_preferences']):
+                        await self.log_to_channel(
+                            f":gear: **[MissingUserData]** {dept_name}\n\n## Task\nID: {task_id}\nDate: {date_str}\nTime: {time_str}\nAdjusted Time: <t:{unix_ts}:f> (<t:{unix_ts}:R>)\n\n## Reminder\nInterval: last-minute\nResult: Missing required user data. Skipping.\n\n## People\nHost:\n- {host if host else 'N/A'}\n\nAssignees:\n- " + "\n- ".join(assignees),
+                            department=dept_name
+                        )
+                        continue
+                    if 'training' not in user.get('reminder_preferences', '').lower():
+                        await self.log_to_channel(
+                            f":gear: **[OptedOut]** {dept_name}\n\n## Task\nID: {task_id}\nDate: {date_str}\nTime: {time_str}\nAdjusted Time: <t:{unix_ts}:f> (<t:{unix_ts}:R>)\n\n## Reminder\nInterval: last-minute\nResult: 'training' not in reminder preferences. Skipping.\n\n## People\nHost:\n- {host if host else 'N/A'}\n\nAssignees:\n- " + "\n- ".join(assignees),
+                            department=dept_name
+                        )
+                        continue
+                    discord_id = user['discord_id']
+                    roblox_username = user['roblox_username']
+                    key = (discord_id, task_id)
                     is_host = roblox_username and roblox_username == host
                     # Only send one last-minute reminder per user per task
                     if key in sent_last_minute_reminder:
@@ -274,15 +292,73 @@ class Reminders(commands.Cog):
                         ms, embed_num, label = (15 * 60 * 1000, 5, '15m')
                     if due_date - ms <= now_ms < due_date - ms + 60000:
                         sent_last_minute_reminder.add(key)
-                        await self.send_training_embed(discord_id, embed_num, task, dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title())
+                        await self.log_to_channel(
+                            f":gear: **[Send]** {dept_name}\n\n## Task\nID: {task_id}\nDate: {date_str}\nTime: {time_str}\nAdjusted Time: <t:{unix_ts}:f> (<t:{unix_ts}:R>)\n\n## Reminder\nInterval: {label}\nResult: DM will be sent.\n\n## People\nHost:\n- {host if host else 'N/A'}\n\nAssignees:\n- " + "\n- ".join(assignees),
+                            department=dept_name
+                        )
+                        await self.send_training_embed(discord_id, embed_num, task, dept_name)
                 # Handle other intervals (24h, 10h, 2h)
                 for ms, embed_num, label in intervals:
                     if due_date - ms <= now_ms < due_date - ms + 60000:
+                        found_user = False
                         for email in assignees:
                             user = user_lookup.get(email)
-                            if user:
-                                discord_id = user['discord_id']
-                                await self.send_training_embed(discord_id, embed_num, task, dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title())
+                            task_id = task.get('id', 'Unknown')
+                            task_name = task.get('name', '')
+                            dept_name = dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()
+                            # Host extraction logic
+                            if dept_name == "Driving Department" and '•' in task_name:
+                                host = task_name.split('•')[-1].strip()
+                            elif ' - ' in task_name:
+                                host = task_name.split(' - ')[-1].strip()
+                            else:
+                                host = ''
+                            dt_utc = datetime.fromtimestamp(due_date/1000, tz=timezone.utc)
+                            dt_local = dt_utc.astimezone(london_tz)
+                            date_str = dt_local.strftime('%d/%m/%Y (%A)')
+                            time_str = dt_local.strftime('%H:%M %Z')
+                            unix_ts = int(dt_local.timestamp())
+                            task_url = task.get('url') or f"https://app.clickup.com/t/{task_id}"
+                            if not user or any(user.get(field) == 'Not set' for field in ['discord_id', 'roblox_username', 'clickup_email', 'reminder_preferences']):
+                                await self.log_to_channel(
+                                    f":gear: **[MissingUserData]** {dept_name}\n\n## Task\nID: {task_id}\nDate: {date_str}\nTime: {time_str}\nAdjusted Time: <t:{unix_ts}:f> (<t:{unix_ts}:R>)\n\n## Reminder\nInterval: {label}\nResult: Missing required user data. Skipping.\n\n## People\nHost:\n- {host if host else 'N/A'}\n\nAssignees:\n- " + "\n- ".join(assignees),
+                                    department=dept_name
+                                )
+                                continue
+                            if 'training' not in user.get('reminder_preferences', '').lower():
+                                await self.log_to_channel(
+                                    f":gear: **[OptedOut]** {dept_name}\n\n## Task\nID: {task_id}\nDate: {date_str}\nTime: {time_str}\nAdjusted Time: <t:{unix_ts}:f> (<t:{unix_ts}:R>)\n\n## Reminder\nInterval: {label}\nResult: 'training' not in reminder preferences. Skipping.\n\n## People\nHost:\n- {host if host else 'N/A'}\n\nAssignees:\n- " + "\n- ".join(assignees),
+                                    department=dept_name
+                                )
+                                continue
+                            found_user = True
+                            discord_id = user['discord_id']
+                            roblox_username = user['roblox_username']
+                            await self.log_to_channel(
+                                f":gear: **[Send]** {dept_name}\n\n## Task\nID: {task_id}\nDate: {date_str}\nTime: {time_str}\nAdjusted Time: <t:{unix_ts}:f> (<t:{unix_ts}:R>)\n\n## Reminder\nInterval: {label}\nResult: DM will be sent.\n\n## People\nHost:\n- {host if host else 'N/A'}\n\nAssignees:\n- " + "\n- ".join(assignees),
+                                department=dept_name
+                            )
+                            await self.send_training_embed(discord_id, embed_num, task, dept_name)
+                        if not found_user:
+                            task_id = task.get('id', 'Unknown')
+                            task_name = task.get('name', '')
+                            dept_name = dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()
+                            if dept_name == "Driving Department" and '•' in task_name:
+                                host = task_name.split('•')[-1].strip()
+                            elif ' - ' in task_name:
+                                host = task_name.split(' - ')[-1].strip()
+                            else:
+                                host = ''
+                            dt_utc = datetime.fromtimestamp(due_date/1000, tz=timezone.utc)
+                            dt_local = dt_utc.astimezone(london_tz)
+                            date_str = dt_local.strftime('%d/%m/%Y (%A)')
+                            time_str = dt_local.strftime('%H:%M %Z')
+                            unix_ts = int(dt_local.timestamp())
+                            task_url = task.get('url') or f"https://app.clickup.com/t/{task_id}"
+                            await self.log_to_channel(
+                                f":gear: **[MissingUser]** {dept_name}\n\n## Task\nID: {task_id}\nDate: {date_str}\nTime: {time_str}\nAdjusted Time: <t:{unix_ts}:f> (<t:{unix_ts}:R>)\n\n## Reminder\nInterval: {label}\nResult: No matching user in DB.\n\n## People\nHost:\n- {host if host else 'N/A'}\n\nAssignees:\n- " + "\n- ".join(assignees),
+                                department=dept_name
+                            )
             continue  # Go to next task, do not break out of department loop
 
     async def send_training_embed(self, discord_id, embed_num, task, department=None):
