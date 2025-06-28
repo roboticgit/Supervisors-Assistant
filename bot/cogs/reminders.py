@@ -301,64 +301,50 @@ class Reminders(commands.Cog):
                 for ms, embed_num, label in intervals:
                     if due_date - ms <= now_ms < due_date - ms + 60000:
                         found_user = False
+                        processed_discord_ids = set()
                         for email in assignees:
                             user = user_lookup.get(email)
-                            task_id = task.get('id', 'Unknown')
-                            task_name = task.get('name', '')
-                            dept_name = dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()
-                            # Host extraction logic
-                            if dept_name == "Driving Department" and '•' in task_name:
-                                host = task_name.split('•')[-1].strip()
-                            elif ' - ' in task_name:
-                                host = task_name.split(' - ')[-1].strip()
-                            else:
-                                host = ''
-                            dt_utc = datetime.fromtimestamp(due_date/1000, tz=timezone.utc)
-                            dt_local = dt_utc.astimezone(london_tz)
-                            date_str = dt_local.strftime('%d/%m/%Y (%A)')
-                            time_str = dt_local.strftime('%H:%M %Z')
-                            unix_ts = int(dt_local.timestamp())
-                            task_url = task.get('url') or f"https://app.clickup.com/t/{task_id}"
                             if not user or any(user.get(field) == 'Not set' for field in ['discord_id', 'roblox_username', 'clickup_email', 'reminder_preferences']):
-                                await self.log_to_channel(
-                                    f":gear: **[MissingUserData]** {dept_name}\n\n## Task\nID: {task_id}\nDate: {date_str}\nTime: {time_str}\nAdjusted Time: <t:{unix_ts}:f> (<t:{unix_ts}:R>)\n\n## Reminder\nInterval: {label}\nResult: Missing required user data. Skipping.\n\n## People\nHost:\n- {host if host else 'N/A'}\n\nAssignees:\n- " + "\n- ".join(assignees),
-                                    department=dept_name
-                                )
-                                continue
+                                continue  # Only log once below if no user found
                             if 'training' not in user.get('reminder_preferences', '').lower():
-                                await self.log_to_channel(
-                                    f":gear: **[OptedOut]** {dept_name}\n\n## Task\nID: {task_id}\nDate: {date_str}\nTime: {time_str}\nAdjusted Time: <t:{unix_ts}:f> (<t:{unix_ts}:R>)\n\n## Reminder\nInterval: {label}\nResult: 'training' not in reminder preferences. Skipping.\n\n## People\nHost:\n- {host if host else 'N/A'}\n\nAssignees:\n- " + "\n- ".join(assignees),
-                                    department=dept_name
-                                )
-                                continue
-                            found_user = True
+                                continue  # Only log once below if no user found
                             discord_id = user['discord_id']
+                            if discord_id in processed_discord_ids:
+                                continue  # Don't log/send for same user twice
+                            processed_discord_ids.add(discord_id)
+                            found_user = True
                             roblox_username = user['roblox_username']
                             await self.log_to_channel(
                                 f":gear: **[Send]** {dept_name}\n\n## Task\nID: {task_id}\nDate: {date_str}\nTime: {time_str}\nAdjusted Time: <t:{unix_ts}:f> (<t:{unix_ts}:R>)\n\n## Reminder\nInterval: {label}\nResult: DM will be sent.\n\n## People\nHost:\n- {host if host else 'N/A'}\n\nAssignees:\n- " + "\n- ".join(assignees),
                                 department=dept_name
                             )
                             await self.send_training_embed(discord_id, embed_num, task, dept_name)
+                        # Only log once for missing/opted out/no user
                         if not found_user:
-                            task_id = task.get('id', 'Unknown')
-                            task_name = task.get('name', '')
-                            dept_name = dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()
-                            if dept_name == "Driving Department" and '•' in task_name:
-                                host = task_name.split('•')[-1].strip()
-                            elif ' - ' in task_name:
-                                host = task_name.split(' - ')[-1].strip()
+                            # Check if any user was missing data or opted out
+                            missing_data = False
+                            opted_out = False
+                            for email in assignees:
+                                user = user_lookup.get(email)
+                                if not user or any(user.get(field) == 'not set' for field in ['discord_id', 'roblox_username', 'clickup_email', 'reminder_preferences']):
+                                    missing_data = True
+                                elif 'training' not in user.get('reminder_preferences', '').lower():
+                                    opted_out = True
+                            if missing_data:
+                                await self.log_to_channel(
+                                    f":gear: **[MissingUserData]** {dept_name}\n\n## Task\nID: {task_id}\nDate: {date_str}\nTime: {time_str}\nAdjusted Time: <t:{unix_ts}:f> (<t:{unix_ts}:R>)\n\n## Reminder\nInterval: {label}\nResult: Missing required user data. Skipping.\n\n## People\nHost:\n- {host if host else 'N/A'}\n\nAssignees:\n- " + "\n- ".join(assignees),
+                                    department=dept_name
+                                )
+                            elif opted_out:
+                                await self.log_to_channel(
+                                    f":gear: **[OptedOut]** {dept_name}\n\n## Task\nID: {task_id}\nDate: {date_str}\nTime: {time_str}\nAdjusted Time: <t:{unix_ts}:f> (<t:{unix_ts}:R>)\n\n## Reminder\nInterval: {label}\nResult: 'training' not in reminder preferences. Skipping.\n\n## People\nHost:\n- {host if host else 'N/A'}\n\nAssignees:\n- " + "\n- ".join(assignees),
+                                    department=dept_name
+                                )
                             else:
-                                host = ''
-                            dt_utc = datetime.fromtimestamp(due_date/1000, tz=timezone.utc)
-                            dt_local = dt_utc.astimezone(london_tz)
-                            date_str = dt_local.strftime('%d/%m/%Y (%A)')
-                            time_str = dt_local.strftime('%H:%M %Z')
-                            unix_ts = int(dt_local.timestamp())
-                            task_url = task.get('url') or f"https://app.clickup.com/t/{task_id}"
-                            await self.log_to_channel(
-                                f":gear: **[MissingUser]** {dept_name}\n\n## Task\nID: {task_id}\nDate: {date_str}\nTime: {time_str}\nAdjusted Time: <t:{unix_ts}:f> (<t:{unix_ts}:R>)\n\n## Reminder\nInterval: {label}\nResult: No matching user in DB.\n\n## People\nHost:\n- {host if host else 'N/A'}\n\nAssignees:\n- " + "\n- ".join(assignees),
-                                department=dept_name
-                            )
+                                await self.log_to_channel(
+                                    f":gear: **[MissingUser]** {dept_name}\n\n## Task\nID: {task_id}\nDate: {date_str}\nTime: {time_str}\nAdjusted Time: <t:{unix_ts}:f> (<t:{unix_ts}:R>)\n\n## Reminder\nInterval: {label}\nResult: No matching user in DB.\n\n## People\nHost:\n- {host if host else 'N/A'}\n\nAssignees:\n- " + "\n- ".join(assignees),
+                                    department=dept_name
+                                )
             continue  # Go to next task, do not break out of department loop
 
     async def send_training_embed(self, discord_id, embed_num, task, department=None):
