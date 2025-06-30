@@ -453,17 +453,5 @@ class Reminders(commands.Cog):
         await discord.utils.sleep_until(next_run)
         print(f"[Reminders] send_training_reminders actually started at {datetime.now(pytz.UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}")
 
-    # TEMPORARY: Manual trigger for send_training_reminders
-    @commands.command(name='run_training_reminder_now')
-    @commands.is_owner()
-    async def run_training_reminder_now(self, ctx):
-        """Manually run the training reminders loop (owner only, for debugging)."""
-        await ctx.send('Running training reminders now...')
-        try:
-            await self._run_training_reminders_once()
-            await ctx.send('Training reminders executed.')
-        except Exception as e:
-            await ctx.send(f'Error running training reminders: {e}')
-
 async def setup(bot):
     await bot.add_cog(Reminders(bot))
