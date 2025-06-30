@@ -206,8 +206,7 @@ class Reminders(commands.Cog):
             await self.log_to_channel(f"🗓️ Failed to DM user {discord_id} for {department}: {e}")
 
 
-    @tasks.loop(minutes=15)
-    async def send_training_reminders(self):
+    async def _run_training_reminders_once(self):
         import requests
         now = datetime.now(pytz.UTC)
         unix_25h_away = int((now + timedelta(hours=25)).timestamp() * 1000)
@@ -245,58 +244,54 @@ class Reminders(commands.Cog):
                     (10 * 60 * 60 * 1000, 2, '10h'),
                     (2 * 60 * 60 * 1000, 3, '2h'),
                 ]
-                # Last-minute reminders (30m host, 15m cohost)
-                for email in assignees:
-                    user = user_lookup.get(email)
-                    task_id = task.get('id', 'Unknown')
-                    task_name = task.get('name', '')
-                    dept_name = dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()
-                    # Host extraction logic
-                    if dept_name == "Driving Department" and '•' in task_name:
-                        host = task_name.split('•')[-1].strip()
-                    elif ' - ' in task_name:
-                        host = task_name.split(' - ')[-1].strip()
-                    else:
-                        host = ''
-                    # Format date/time for logs
-                    dt_utc = datetime.fromtimestamp(due_date/1000, tz=timezone.utc)
-                    dt_local = dt_utc.astimezone(london_tz)
-                    date_str = dt_local.strftime('%d/%m/%Y (%A)')
-                    time_str = dt_local.strftime('%H:%M %Z')
-                    unix_ts = int(dt_local.timestamp())
-                    task_url = task.get('url') or f"https://app.clickup.com/t/{task_id}"
-                    # Check for missing user data
-                    if not user or any(user.get(field) == 'Not set' for field in ['discord_id', 'roblox_username', 'clickup_email', 'reminder_preferences']):
-                        await self.log_to_channel(
-                            f":gear: **[MissingUserData]** {dept_name}\n\n## Task\nID: {task_id}\nDate: {date_str}\nTime: {time_str}\nAdjusted Time: <t:{unix_ts}:f> (<t:{unix_ts}:R>)\n\n## Reminder\nInterval: last-minute\nResult: Missing required user data. Skipping.\n\n## People\nHost:\n- {host if host else 'N/A'}\n\nAssignees:\n- " + "\n- ".join(assignees),
-                            department=dept_name
-                        )
-                        continue
-                    if 'training' not in user.get('reminder_preferences', '').lower():
-                        await self.log_to_channel(
-                            f":gear: **[OptedOut]** {dept_name}\n\n## Task\nID: {task_id}\nDate: {date_str}\nTime: {time_str}\nAdjusted Time: <t:{unix_ts}:f> (<t:{unix_ts}:R>)\n\n## Reminder\nInterval: last-minute\nResult: 'training' not in reminder preferences. Skipping.\n\n## People\nHost:\n- {host if host else 'N/A'}\n\nAssignees:\n- " + "\n- ".join(assignees),
-                            department=dept_name
-                        )
-                        continue
-                    discord_id = user['discord_id']
-                    roblox_username = user['roblox_username']
-                    key = (discord_id, task_id)
-                    is_host = roblox_username and roblox_username == host
-                    # Only send one last-minute reminder per user per task
-                    if key in sent_last_minute_reminder:
-                        continue
-                    # Host: 30m, Co-Host: 15m
-                    if is_host:
-                        ms, embed_num, label = (30 * 60 * 1000, 4, '30m')
-                    else:
-                        ms, embed_num, label = (15 * 60 * 1000, 5, '15m')
-                    if due_date - ms <= now_ms < due_date - ms + 60000:
-                        sent_last_minute_reminder.add(key)
-                        await self.log_to_channel(
-                            f":gear: **[Send]** {dept_name}\n\n## Task\nID: {task_id}\nDate: {date_str}\nTime: {time_str}\nAdjusted Time: <t:{unix_ts}:f> (<t:{unix_ts}:R>)\n\n## Reminder\nInterval: {label}\nResult: DM will be sent.\n\n## People\nHost:\n- {host if host else 'N/A'}\n\nAssignees:\n- " + "\n- ".join(assignees),
-                            department=dept_name
-                        )
-                        await self.send_training_embed(discord_id, embed_num, task, dept_name)
+                # Always set these for the task, so they're available for all code paths
+                task_id = task.get('id', 'Unknown')
+                task_name = task.get('name', '')
+                dept_name = dept_key.replace('CLICKUP_LIST_ID_', '').replace('_', ' ').title()
+                if dept_name == "Driving Department" and '•' in task_name:
+                    host = task_name.split('•')[-1].strip()
+                elif ' - ' in task_name:
+                    host = task_name.split(' - ')[-1].strip()
+                else:
+                    host = ''
+                dt_utc = datetime.fromtimestamp(due_date/1000, tz=timezone.utc)
+                dt_local = dt_utc.astimezone(london_tz)
+                date_str = dt_local.strftime('%d/%m/%Y (%A)')
+                time_str = dt_local.strftime('%H:%M %Z')
+                unix_ts = int(dt_local.timestamp())
+                task_url = task.get('url') or f"https://app.clickup.com/t/{task_id}"
+                # Check for missing user data
+                if not user or any(user.get(field) == 'Not set' for field in ['discord_id', 'roblox_username', 'clickup_email', 'reminder_preferences']):
+                    await self.log_to_channel(
+                        f":gear: **[MissingUserData]** {dept_name}\n\n## Task\nID: {task_id}\nDate: {date_str}\nTime: {time_str}\nAdjusted Time: <t:{unix_ts}:f> (<t:{unix_ts}:R>)\n\n## Reminder\nInterval: last-minute\nResult: Missing required user data. Skipping.\n\n## People\nHost:\n- {host if host else 'N/A'}\n\nAssignees:\n- " + "\n- ".join(assignees),
+                        department=dept_name
+                    )
+                    continue
+                if 'training' not in user.get('reminder_preferences', '').lower():
+                    await self.log_to_channel(
+                        f":gear: **[OptedOut]** {dept_name}\n\n## Task\nID: {task_id}\nDate: {date_str}\nTime: {time_str}\nAdjusted Time: <t:{unix_ts}:f> (<t:{unix_ts}:R>)\n\n## Reminder\nInterval: last-minute\nResult: 'training' not in reminder preferences. Skipping.\n\n## People\nHost:\n- {host if host else 'N/A'}\n\nAssignees:\n- " + "\n- ".join(assignees),
+                        department=dept_name
+                    )
+                    continue
+                discord_id = user['discord_id']
+                roblox_username = user['roblox_username']
+                key = (discord_id, task_id)
+                is_host = roblox_username and roblox_username == host
+                # Only send one last-minute reminder per user per task
+                if key in sent_last_minute_reminder:
+                    continue
+                # Host: 30m, Co-Host: 15m
+                if is_host:
+                    ms, embed_num, label = (30 * 60 * 1000, 4, '30m')
+                else:
+                    ms, embed_num, label = (15 * 60 * 1000, 5, '15m')
+                if due_date - ms <= now_ms < due_date - ms + 60000:
+                    sent_last_minute_reminder.add(key)
+                    await self.log_to_channel(
+                        f":gear: **[Send]** {dept_name}\n\n## Task\nID: {task_id}\nDate: {date_str}\nTime: {time_str}\nAdjusted Time: <t:{unix_ts}:f> (<t:{unix_ts}:R>)\n\n## Reminder\nInterval: {label}\nResult: DM will be sent.\n\n## People\nHost:\n- {host if host else 'N/A'}\n\nAssignees:\n- " + "\n- ".join(assignees),
+                        department=dept_name
+                    )
+                    await self.send_training_embed(discord_id, embed_num, task, dept_name)
                 # Handle other intervals (24h, 10h, 2h)
                 for ms, embed_num, label in intervals:
                     if due_date - ms <= now_ms < due_date - ms + 60000:
@@ -304,7 +299,7 @@ class Reminders(commands.Cog):
                         processed_discord_ids = set()
                         for email in assignees:
                             user = user_lookup.get(email)
-                            if not user or any(user.get(field) == 'Not set' for field in ['discord_id', 'roblox_username', 'clickup_email', 'reminder_preferences']):
+                            if not user or any(user.get(field) == 'not set' for field in ['discord_id', 'roblox_username', 'clickup_email', 'reminder_preferences']):
                                 continue  # Only log once below if no user found
                             if 'training' not in user.get('reminder_preferences', '').lower():
                                 continue  # Only log once below if no user found
@@ -441,6 +436,10 @@ class Reminders(commands.Cog):
         await discord.utils.sleep_until(next_run)
         print(f"[Reminders] send_quota_reminders actually started at {datetime.now(pytz.UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}")
 
+    @tasks.loop(minutes=15)
+    async def send_training_reminders(self):
+        await self._run_training_reminders_once()
+
     @send_training_reminders.before_loop
     async def before_training_reminders(self):
         now = datetime.now(pytz.UTC)
@@ -453,6 +452,18 @@ class Reminders(commands.Cog):
         print(f"[Reminders] send_training_reminders will start at {next_run.strftime('%Y-%m-%d %H:%M:%S UTC')}")
         await discord.utils.sleep_until(next_run)
         print(f"[Reminders] send_training_reminders actually started at {datetime.now(pytz.UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}")
+
+    # TEMPORARY: Manual trigger for send_training_reminders
+    @commands.command(name='run_training_reminder_now')
+    @commands.is_owner()
+    async def run_training_reminder_now(self, ctx):
+        """Manually run the training reminders loop (owner only, for debugging)."""
+        await ctx.send('Running training reminders now...')
+        try:
+            await self._run_training_reminders_once()
+            await ctx.send('Training reminders executed.')
+        except Exception as e:
+            await ctx.send(f'Error running training reminders: {e}')
 
 async def setup(bot):
     await bot.add_cog(Reminders(bot))
