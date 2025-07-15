@@ -4,7 +4,6 @@ from discord import app_commands
 import requests
 import os
 from dotenv import load_dotenv
-from utils.helpers import get_db_connection
 from bot.utils.helpers import get_db_connection
 import datetime
 from datetime import timezone, timedelta
