@@ -278,10 +278,6 @@ class Reminders(commands.Cog):
                 for email in assignees:
                     user = user_lookup.get(email)
                     if not user or any(user.get(field) == 'Not set' for field in ['discord_id', 'roblox_username', 'clickup_email', 'reminder_preferences']):
-                        await self.log_to_channel(
-                            f":gear: **[MissingUserData]** {dept_name}\n\n## Task\nID: {task_id}\nDate: {date_str}\nTime: {time_str}\nAdjusted Time: <t:{unix_ts}:f> (<t:{unix_ts}:R>)\n\n## Reminder\nInterval: last-minute\nResult: Missing required user data. Skipping.\n\n## People\nHost:\n- {host if host else 'N/A'}\n\nAssignees:\n- " + "\n- ".join(assignees),
-                            department=dept_name
-                        )
                         continue
                     if 'training' not in user.get('reminder_preferences', '').lower():
                         await self.log_to_channel(
@@ -311,54 +307,25 @@ class Reminders(commands.Cog):
                 # Handle other intervals (24h, 10h, 2h)
                 for ms, embed_num, label in intervals:
                     if due_date - ms <= now_ms < due_date - ms + 60000:
+                        await self.log_to_channel(f"Processing reminders for interval: {label} ({dept_name})")
                         found_user = False
                         processed_discord_ids = set()
                         for email in assignees:
                             user = user_lookup.get(email)
                             if not user or any(user.get(field) == 'not set' for field in ['discord_id', 'roblox_username', 'clickup_email', 'reminder_preferences']):
-                                continue  # Only log once below if no user found
+                                continue
                             if 'training' not in user.get('reminder_preferences', '').lower():
-                                continue  # Only log once below if no user found
+                                continue
                             discord_id = user['discord_id']
                             if discord_id in processed_discord_ids:
-                                continue  # Don't log/send for same user twice
+                                continue
                             processed_discord_ids.add(discord_id)
                             found_user = True
                             roblox_username = user['roblox_username']
-                            await self.log_to_channel(
-                                f":gear: **[Send]** {dept_name}\n\n## Task\nID: {task_id}\nDate: {date_str}\nTime: {time_str}\nAdjusted Time: <t:{unix_ts}:f> (<t:{unix_ts}:R>)\n\n## Reminder\nInterval: {label}\nResult: DM will be sent.\n\n## People\nHost:\n- {host if host else 'N/A'}\n\nAssignees:\n- " + "\n- ".join(assignees),
-                                department=dept_name
-                            )
                             await self.send_training_embed(discord_id, embed_num, task, dept_name)
-                        # Only log once for missing/opted out/no user
-                        if not found_user:
-                            # Check if any user was missing data or opted out
-                            missing_data = False
-                            opted_out = False
-                            for email in assignees:
-                                user = user_lookup.get(email)
-                                if not user or any(user.get(field) == 'not set' for field in ['discord_id', 'roblox_username', 'clickup_email', 'reminder_preferences']):
-                                    missing_data = True
-                                elif 'training' not in user.get('reminder_preferences', '').lower():
-                                    opted_out = True
-                            if missing_data:
-                                await self.log_to_channel(
-                                    f":gear: **[MissingUserData]** {dept_name}\n\n## Task\nID: {task_id}\nDate: {date_str}\nTime: {time_str}\nAdjusted Time: <t:{unix_ts}:f> (<t:{unix_ts}:R>)\n\n## Reminder\nInterval: {label}\nResult: Missing required user data. Skipping.\n\n## People\nHost:\n- {host if host else 'N/A'}\n\nAssignees:\n- " + "\n- ".join(assignees),
-                                    department=dept_name
-                                )
-                            elif opted_out:
-                                await self.log_to_channel(
-                                    f":gear: **[OptedOut]** {dept_name}\n\n## Task\nID: {task_id}\nDate: {date_str}\nTime: {time_str}\nAdjusted Time: <t:{unix_ts}:f> (<t:{unix_ts}:R>)\n\n## Reminder\nInterval: {label}\nResult: 'training' not in reminder preferences. Skipping.\n\n## People\nHost:\n- {host if host else 'N/A'}\n\nAssignees:\n- " + "\n- ".join(assignees),
-                                    department=dept_name
-                                )
-                            else:
-                                await self.log_to_channel(
-                                    f":gear: **[MissingUser]** {dept_name}\n\n## Task\nID: {task_id}\nDate: {date_str}\nTime: {time_str}\nAdjusted Time: <t:{unix_ts}:f> (<t:{unix_ts}:R>)\n\n## Reminder\nInterval: {label}\nResult: No matching user in DB.\n\n## People\nHost:\n- {host if host else 'N/A'}\n\nAssignees:\n- " + "\n- ".join(assignees),
-                                    department=dept_name
-                                )
             continue  # Go to next task, do not break out of department loop
 
-    async def send_training_embed(self, discord_id, embed_num, task, department=None):
+    async def send_training_embed(self, discord_id, embed_num, task, department=None, rate_limit_delay=2):
         user = self.bot.get_user(discord_id)
         if not user:
             try:
@@ -437,6 +404,7 @@ class Reminders(commands.Cog):
                 await user.send(embed=embed, view=view)
             else:
                 await user.send(embed=embed)
+            await asyncio.sleep(rate_limit_delay)  # Add rate limit delay after sending each DM
         except Exception as e:
             print(f"[Reminders] Failed to DM user {discord_id}: {e}")
             return None
