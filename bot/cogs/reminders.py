@@ -44,7 +44,7 @@ class Reminders(commands.Cog):
             return None
         return row['reminder_preferences']
 
-    async def log_to_channel(self, message, department=None):
+    async def log_to_channel(self, message, department=None, max_retries=3):
         channel = self.bot.get_channel(self.LOG_CHANNEL_ID)
         if channel:
             emoji = ''
@@ -58,7 +58,23 @@ class Reminders(commands.Cog):
                     emoji = '\U0001F7E1'  # Yellow circle
                 elif 'signal' in dept:
                     emoji = '\U0001F7E2'  # Green circle
-            await channel.send(f"{emoji} {message}" if emoji else message)
+            msg = f"{emoji} {message}" if emoji else message
+            for attempt in range(1, max_retries + 1):
+                try:
+                    await channel.send(msg)
+                    break
+                except Exception as e:
+                    import discord
+                    if isinstance(e, discord.errors.DiscordServerError):
+                        print(f"[Reminders] Discord 503 error on log_to_channel (attempt {attempt}): {e}")
+                        if attempt < max_retries:
+                            import asyncio
+                            await asyncio.sleep(2 ** attempt)  # Exponential backoff
+                        else:
+                            print(f"[Reminders] Giving up after {max_retries} attempts to send log message.")
+                    else:
+                        print(f"[Reminders] Unexpected error in log_to_channel: {e}")
+                        break
 
     LOG_CHANNEL_ID = 1374924175000469625  
 
