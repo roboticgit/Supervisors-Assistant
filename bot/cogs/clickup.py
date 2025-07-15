@@ -4,13 +4,10 @@ from discord import app_commands
 import requests
 import os
 from dotenv import load_dotenv
-from utils.helpers import get_db_connection, convert_to_unix
-import asyncio
-from discord.ui import Modal, Button, View
+from utils.helpers import get_db_connection
 from datetime import datetime, timezone, timedelta
 import pytz
 import re
-
 load_dotenv()
 
 class Clickup(commands.Cog):

@@ -1,11 +1,12 @@
 import discord
 from discord.ext import commands
-from discord import Intents, app_commands
+from discord import Intents
 import os
+import time
 from dotenv import load_dotenv
 import sys
 import pytz
-from datetime import datetime, timezone
+from datetime import datetime
 from utils.db import get_db_connection
 from bot.utils.quotafetch import get_roblox_user_task_counts
 import requests
@@ -38,7 +39,6 @@ async def on_member_join(member):
 
 @tree.command(name="ping", description="Check if the bot is responsive.")
 async def ping(interaction: discord.Interaction):
-    import time
     start = time.perf_counter()
     unix_start = int(time.time() * 1000)
     # Send initial response

@@ -1,4 +1,6 @@
 import discord
+import asyncio
+import requests
 from discord.ext import commands, tasks
 from datetime import datetime, timedelta, timezone
 import pytz
@@ -64,11 +66,9 @@ class Reminders(commands.Cog):
                     await channel.send(msg)
                     break
                 except Exception as e:
-                    import discord
                     if isinstance(e, discord.errors.DiscordServerError):
                         print(f"[Reminders] Discord 503 error on log_to_channel (attempt {attempt}): {e}")
                         if attempt < max_retries:
-                            import asyncio
                             await asyncio.sleep(2 ** attempt)  # Exponential backoff
                         else:
                             print(f"[Reminders] Giving up after {max_retries} attempts to send log message.")
@@ -147,7 +147,6 @@ class Reminders(commands.Cog):
                             f"due_date_lt={last_of_month_unix_ms}&"
                             f"page={page}"
                         )
-                        import requests
                         response = requests.get(url_with_params, headers=headers)
                         # Logging for each task fetch and result
                         await self.log_to_channel(f"\U0001F5D3 [Fetch] {department} | archived={archived_value} | page={page} | status={response.status_code}")
@@ -223,7 +222,6 @@ class Reminders(commands.Cog):
 
 
     async def _run_training_reminders_once(self):
-        import requests
         now = datetime.now(pytz.UTC)
         unix_25h_away = int((now + timedelta(hours=25)).timestamp() * 1000)
         department_keys = [
