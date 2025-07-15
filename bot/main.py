@@ -29,7 +29,7 @@ async def on_ready():
     await bot.change_presence(status=discord.Status.online, activity=activity)
     for filename in os.listdir('./bot/cogs'):
         if filename.endswith('.py') and filename != '__init__.py':  # Skip __init__.py
-            await bot.load_extension(f'cogs.{filename[:-3]}')
+            await bot.load_extension(f'bot.cogs.{filename[:-3]}')
     print('All cogs loaded and bot is ready!')
 
 # Ensure the bot has permission to fetch user information
