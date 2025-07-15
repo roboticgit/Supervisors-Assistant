@@ -7,10 +7,10 @@ from dotenv import load_dotenv
 import sys
 import pytz
 from datetime import datetime
-from utils.db import get_db_connection
+from bot.utils.db import get_db_connection
 from bot.utils.quotafetch import get_roblox_user_task_counts
 import requests
-from utils.paginator import SimplePaginator
+from bot.utils.paginator import SimplePaginator
 
 load_dotenv()
 

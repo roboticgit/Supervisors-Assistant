@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from discord.ui import Modal, Button, View
-from utils.helpers import get_db_connection
+from bot.utils.helpers import get_db_connection
 import os
 
 # Add a config variable for the approval channel

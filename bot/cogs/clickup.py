@@ -5,7 +5,9 @@ import requests
 import os
 from dotenv import load_dotenv
 from utils.helpers import get_db_connection
-from datetime import datetime, timezone, timedelta
+from bot.utils.helpers import get_db_connection
+import datetime
+from datetime import timezone, timedelta
 import pytz
 import re
 load_dotenv()
