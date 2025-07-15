@@ -7,8 +7,9 @@ from dotenv import load_dotenv
 from utils.helpers import get_db_connection, convert_to_unix
 import asyncio
 from discord.ui import Modal, Button, View
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import pytz
+import re
 
 load_dotenv()
 
@@ -56,7 +57,6 @@ class Clickup(commands.Cog):
         if user_data['secondary_department']:
             departments.append(user_data['secondary_department'])
 
-        from datetime import datetime, timezone, timedelta
         now = datetime.now(timezone.utc)
         first_of_month = datetime(year=now.year, month=now.month, day=1, tzinfo=timezone.utc)
         first_of_month_unix_ms = int(first_of_month.timestamp() * 1000)
@@ -326,7 +326,7 @@ class Clickup(commands.Cog):
         connection.close()
 
         # Immediately acknowledge the interaction
-        await interaction.response.send_message("Sorry! This command is recieing an upgrade to be more convinient, along with a new command. Please manually create your training until then.", ephemeral=True)
+        await interaction.response.send_message("Sorry! This command is receiving an upgrade to be more convenient, along with a new command. Please manually create your training until then.", ephemeral=True)
         return
 
         # Return early if any required field is 'Not set'
@@ -355,8 +355,6 @@ class Clickup(commands.Cog):
 
         # Convert user input date/time to BST/GMT (Europe/London)
         try:
-            import pytz
-            from datetime import datetime, timedelta
             user_tz = pytz.timezone(user_timezone)
             naive_dt = datetime.strptime(f"{date} {time}", "%Y-%m-%d %H:%M")
             local_dt = user_tz.localize(naive_dt)
@@ -464,7 +462,6 @@ class Clickup(commands.Cog):
                 await interaction.edit_original_response(content="Training created, but no description found to update with your ROBLOX username under Assessment Track A. Everything else is fine.")
                 return
             # Step 4: Insert ROBLOX username after 'Assessor: '
-            import re
             pattern = r'(#### Assessment Track A\\s+Assessor: )(.*)'
             replacement = r'\\1' + roblox_username
             new_markdown, count = re.subn(pattern, replacement, markdown, count=1, flags=re.MULTILINE)
