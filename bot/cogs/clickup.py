@@ -30,6 +30,11 @@ class Clickup(commands.Cog):
 
     @app_commands.command(name="check", description="Check if you've reached quota.")
     async def check(self, interaction: discord.Interaction):
+        # --- Send initial message (not ephemeral, no embed) ---
+        await interaction.response.send_message(
+            content="Processing your request...",
+            ephemeral=False
+        )
         connection = get_db_connection()
         cursor = connection.cursor(dictionary=True)
         cursor.execute("SELECT primary_department, secondary_department, roblox_username, clickup_email, timezone FROM users WHERE discord_id = %s", (interaction.user.id,))
@@ -65,12 +70,6 @@ class Clickup(commands.Cog):
             next_month = datetime(year=now.year, month=now.month+1, day=1, tzinfo=timezone.utc)
         last_of_month = next_month - timedelta(milliseconds=1)
         last_of_month_unix_ms = int(last_of_month.timestamp() * 1000)
-
-        # --- Send initial message (not ephemeral, no embed) ---
-        await interaction.response.send_message(
-            content="Processing your request...",
-            ephemeral=False
-        )
 
         # --- Prepare status explanation embed (for followup, ephemeral) ---
         intro_embed = discord.Embed(
