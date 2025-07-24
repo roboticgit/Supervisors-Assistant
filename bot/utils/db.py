@@ -1,4 +1,4 @@
-import mysql.connector
+import mariadb
 import os
 
 DB_HOST = os.getenv('DB_HOST')
@@ -7,7 +7,7 @@ DB_PASSWORD = os.getenv('DB_PASSWORD')
 DB_NAME = os.getenv('DB_NAME')
 
 def get_db_connection():
-    return mysql.connector.connect(
+    return mariadb.connect(
         host=DB_HOST,
         user=DB_USER,
         password=DB_PASSWORD,
