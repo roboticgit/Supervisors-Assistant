@@ -381,25 +381,35 @@ async def on_message(message):
             await message.channel.send('You do not have permission to use this command.')
             return
         await message.channel.send('Fetching and counting hosts/co-hosts, this may take a moment...')
-        roblox_users = [
-            '12321wesee2', 'Cecelia312', 'emallocz', 'idaaa494', 'Jonedaaa', 'mr_fys', 'newmannly', 'norby_y', 'thebeast5432109', 'TheoCoolGpe',
-            'finallybeta', '2ndFran80000000', 'aa_efo', 'ansonye', 'Bull4890vivmas', 'charlton_hbx', 'CHIElevatorman', 'chlpr', 'ComradeArmyyy',
-            'DeadlyGrandmx', 'DokiDotto', 'DrivingPro63', 'EMU3001_Ouo', 'Extraabyte', 'I_iApple', 'Imnotan_furry', 'InspectorX59', 'Jonsy0930',
-            'jurre12124', 'Ka1yen', 'KoalasNattion', 'Littlechocolate3003', 'lucasXD12327', 'lvekis', 'minjaehong2170', 'MoinALTC', 'moscowcode',
-            'mrprojl9', 'NotFinn5', 'odlegodo', 'ORollerO', 'play333222', 'polaris65536', 'Pxndx1606', 'quite_mortified', 'Robotic_dony2468',
-            'rorow122', 'Storrrent', 'Tobsenheimer', 'Walruses_XD', 'whyevenbothernaming', 'ZedZeeGamer246', '111DannySun', '1TopGTejas',
-            '656Cam_GamesReal', 'AbsurdlySmrt', 'AdrianPH624', 'Adrixn0_0', 'Alanek_Alanek', 'AVeryRomanlanHolder', 'CounterBoxes', 'cristi22991',
-            'Daan_oontje', 'Demon368xd', 'DJ_Techno1', 'djl_dev', 'Emilsen_2', 'holyHeccCapybara', 'intoxicanto1', 'JanEisJan', 'JumpoutPlayz',
-            'kmb_Route934', 'Matthew_19104303', 'Movies22_byTR', 'obi0kenobi', 'Pilots_s', 'purpalyo1234', 'qxPeter', 'Smiling_Tokyo',
-            'SolidRedLine', 'SplitYourGamming10', 'SquadFam_9000', 'SquidwardHasDementia', 'suwu27ejdud', 'TheOptimistic_Legend',
-            'TheSlavicBeastXD', 'tsilenced', 'VoidyTheReblard', 'WorstLiam8312', 'x_hal3', 'Yengamertv', 'YourDailyMoose', 'BoiledAnchovies',
-            'BrendonUrieFrom_PATD', 'codelyokop', 'CriticalErrxr', 'DeepBlue4210', 'deluoi945', 'Endz0Blendz0', 'flippy12052004', 'InhumanDoosh',
-            'PeppyThePingu', 'Starquius', 'Stigon_0', 'STM_RBLX', 'yiuivan05', 'ak220905', 'BeaverCop2007', 'Calli656', 'eamonnthediamond',
-            'Edoebzd', 'GroundskeeperHagrid', 'iProtaqonist', 'isaaccfchu', 'JakovSonBJ', 'TheYannick25', 'mqxtty', 'PhotoBlockTrollz',
-            'RLSJ1997', 'slippyrails1', 'ssbninja', 'TakoThe_Taco', 'TheRandomDutchLad', 'WurstSemmelKopf', 'THEEXILENTGAMER',
-            'SkibidiHawkTuahRizz7', 'Gabrieliito9', 'Nojus_Sushis', 'RB54d', 'comfled', 'NotOreo9', 'Fighter_Boy113', 'reflqctnl', 'Real_SK8R',
-            'DutchVossi', 'AssortedBaklava', 'Arkadexus', 'colly_oz', 'Ethernel65', 'thecottonn', 'bagg130', 'EatTaco1', 'GL_TongDie',
-            'Willmaster453', 'HoustonPlayzRoblox1', 'Sohcool55', 'Iceboy1708', 'RedAl60', 'tom1works', 'jackli0908_HKer', 'AngliaRail'
+        roblox_users = ["12321wesee2", "Arkadexus", "AssortedBaklava", "bagg130", "Cecelia312", "colly_oz", "comfled", "DutchVossi", 
+                        "EatTaco1", "emallocz", "Ethernel65", "finallybeta", "GL_TongDie", "HoustonPlayzRoblox1", "Iceboy1708", 
+                        "idaaa494", "jackli0908_HKer", "Jonedaaa", "mr_fys", "newmannly", "NotOreo9", "Real_SK8R", "RB54d", 
+                        "reflqctnl", "SkibidiHawkTuahRizz7", "Sohcool55", "thecottonn", "TheoCoolGpe", "THEEXILENTGAMER", "tom1works", 
+                        "WurstSemmelKopf", "Willmaster453", "2ndFran80000000", "aa_efo", "ansonye", "Bull4890vivmas", "charlton_hbx", 
+                        "CHIElevatorman", "chlpr", "ComradeArmyyy", "DeadlyGrandmx", "DokiDotto", "DrivingPro63", "EMU3001_Ouo", 
+                        "Extraabyte", "I_iApple", "Imnotan_furry", "InspectorX59", "Jonsy0930", "jurre12124", "Ka1yen", "KoalasNattion", 
+                        "Littlechocolate3003", "lucasXD12327", "lvekis", "minjaehong2170", "MoinALTC", "moscowcode", "mrprojl9", 
+                        "NotFinn5", "odlegodo", "ORollerO", "play333222", "polaris65536", "Pxndx1606", "quite_mortified", 
+                        "Robotic_dony2468", "rorow122", "Storrrent", "Tobsenheimer", "Walruses_XD", "whyevenbothernaming", 
+                        "111DannySun", "1TopGTejas", "656Cam_GamesReal", "AbsurdlySmrt", "AdrianPH624", "Adrixn0_0", "Alanek_Alanek", 
+                        "AVeryRomanlanHolder", "cristi22991", "Daan_oontje", "Demon368xd", "djl_dev", "Emilsen_2", "holyHeccCapybara", 
+                        "intoxicanto1", "JanEisJan", "JumpoutPlayz", "kmb_Route934", "Matthew_19104303", "Movies22_byTR", 
+                        "obi0kenobi", "Pilots_s", "purpalyo1234", "qxPeter", "Smiling_Tokyo", "SolidRedLine", "SplitYourGamming10", 
+                        "SquadFam_9000", "SquidwardHasDementia", "suwu27ejdud", "TheOptimistic_Legend", "TheSlavicBeastXD", 
+                        "tsilenced", "VoidyTheReblard", "WorstLiam8312", "x_hal3", "Yengamertv", "YourDailyMoose", "BoiledAnchovies", 
+                        "BrendonUrieFrom_PATD", "codelyokop", "CriticalErrxr", "DeepBlue4210", "deluoi945", "Endz0Blendz0", 
+                        "flippy12052004", "InhumanDoosh", "PeppyThePingu", "Starquius", "Stigon_0", "STM_RBLX", "yiuivan05", 
+                        "ak220905", "BeaverCop2007", "Calli656", "eamonnthediamond", "Edoebzd", "GroundskeeperHagrid", 
+                        "iProtaqonist", "isaaccfchu", "JakovSonBJ", "TheYannick25", "PhotoBlockTrollz", "RLSJ1997", "slippyrails1", 
+                        "ssbninja", "TakoThe_Taco", "TheRandomDutchLad", "cantloginops1", "RivieraYue", "JamesJohansson", 
+                        "HumanEclipse", "Leafidreams", "YB0403", "sticksgobyebye", "Pz58_Mutz", "Artesart", "inthelimits", 
+                        "twichben34", "enic183", "Limitless_RBX", "faIsestory", "Joseph_FXN", "BratSummerSlay123", "lavendercoloredcatto", 
+                        "vossve", "Dori067", "bnincl", "NajlepszANazwa6", "AgentHakuu", "Bronkelman", "ReactivePhoton", 
+                        "the_Rstn", "mishblaire", "f0ss1l_au", "unreiferapfelxd", "CraxzyXotic", "drueberflug", "Gimacamo2019", 
+                        "Yoshi5336", "Bebay_RP", "NamKai_HK", "Itzblizzy07", "winner_leon8", "TaviShadows", "madstheblondee", 
+                        "DerLord2K11", "abczzz3", "immatrouble", "good_gam3rs", "BlackBearsBestFriend", "RobloAlexandru", 
+                        "Legocoderr", "Ferro3003", "Sillygeece", "nathdenpl", "Micro_Develops", "NowReverse", "tihouccido4", 
+                        "DaBeast5766", "NoDripDynamo"
         ]
         task_counts = get_roblox_user_task_counts(roblox_users)
         all_sorted = sorted(((u, task_counts[u]['total']) for u in roblox_users), key=lambda x: x[1], reverse=True)
@@ -410,7 +420,7 @@ async def on_message(message):
                 medal_emojis = [":first_place:", ":second_place:", ":third_place:"]
                 return f"{medal_emojis[i]} **{name}** ({count})"
             return f"{i+1 + paginator.page * paginator.page_size}. {name} ({count})"
-        paginator = SimplePaginator(all_sorted, page_size=20, title="Most Active Supervisors This Month", line_builder=line_builder)
+        paginator = SimplePaginator(all_sorted, page_size=10, title="Most Active Supervisors This Month", line_builder=line_builder)
         await paginator.send(message.channel)
         return
 
