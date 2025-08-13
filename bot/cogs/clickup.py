@@ -9,6 +9,7 @@ import datetime
 from datetime import timezone, timedelta
 import pytz
 import re
+
 load_dotenv()
 
 class Clickup(commands.Cog):
@@ -212,7 +213,7 @@ class Clickup(commands.Cog):
                     due = t.get('due_date')
                     url = t.get('url')
                     if due:
-                        dt_utc = datetime.utcfromtimestamp(int(due)/1000).replace(tzinfo=pytz.UTC)
+                        dt_utc = datetime.datetime.utcfromtimestamp(int(due)/1000).replace(tzinfo=pytz.UTC)
                         dt_local = dt_utc.astimezone(tz)
                         date_str = dt_local.strftime('%A, %B %d, %Y at %I:%M %p')
                     else:
@@ -268,7 +269,7 @@ class Clickup(commands.Cog):
                     due = t.get('due_date')
                     url = t.get('url')
                     if due:
-                        dt_utc = datetime.utcfromtimestamp(int(due)/1000).replace(tzinfo=pytz.UTC)
+                        dt_utc = datetime.datetime.utcfromtimestamp(int(due)/1000).replace(tzinfo=pytz.UTC)
                         dt_local = dt_utc.astimezone(tz)
                         date_str = dt_local.strftime('%A, %B %d, %Y at %I:%M %p')
                     else:
@@ -401,7 +402,7 @@ class Clickup(commands.Cog):
                 name = task.get('name', 'No Name')
                 due = task.get('due_date')
                 if due:
-                    dt = datetime.utcfromtimestamp(int(due)/1000).replace(tzinfo=pytz.UTC).astimezone(london_tz)
+                    dt = datetime.datetime.utcfromtimestamp(int(due)/1000).replace(tzinfo=pytz.UTC).astimezone(london_tz)
                     due_str = dt.strftime('%A, %B %d, %Y at %H:%M')
                 else:
                     due_str = 'No date'
