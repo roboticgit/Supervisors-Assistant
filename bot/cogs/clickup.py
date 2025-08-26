@@ -221,14 +221,44 @@ class Clickup(commands.Cog):
                     if url:
                         date_str = f"[{date_str}]({url})"
                     scheduled_list.append(date_str)
-                scheduled_value = "\n".join(scheduled_list)
+                # Split into multiple fields if needed
+                scheduled_value_chunks = []
+                current_chunk = ""
+                for item in scheduled_list:
+                    if len(current_chunk) + len(item) + 1 > 1024:
+                        scheduled_value_chunks.append(current_chunk)
+                        current_chunk = item
+                    else:
+                        if current_chunk:
+                            current_chunk += "\n"
+                        current_chunk += item
+                if current_chunk:
+                    scheduled_value_chunks.append(current_chunk)
+                max_fields = 25
+                field_count = 0
+                for idx, chunk in enumerate(scheduled_value_chunks):
+                    if field_count >= max_fields - 1:
+                        break
+                    part = f" (Part {idx+1})" if idx > 0 else ""
+                    username_embed.add_field(
+                        name=f"Scheduled Hosts{part}",
+                        value=chunk,
+                        inline=False
+                    )
+                    field_count += 1
+                if len(scheduled_value_chunks) > max_fields - 1:
+                    not_shown = len(scheduled_list) - sum(chunk.count('\n')+1 for chunk in scheduled_value_chunks[:max_fields-1])
+                    username_embed.add_field(
+                        name="Scheduled Hosts (More Not Shown)",
+                        value=f"{not_shown} more trainings not shown due to Discord embed limits.",
+                        inline=False
+                    )
             else:
-                scheduled_value = "None"
-            username_embed.add_field(
-                name="Scheduled Hosts",
-                value=scheduled_value,
-                inline=False
-            )
+                username_embed.add_field(
+                    name="Scheduled Hosts",
+                    value="None",
+                    inline=False
+                )
             username_embed.add_field(
                 name="All in All (Completed + Scheduled)",
                 value=f"{str(concluded_username + scheduled_username)}/2 (" +
@@ -277,14 +307,44 @@ class Clickup(commands.Cog):
                     if url:
                         date_str = f"[{date_str}]({url})"
                     scheduled_list.append(date_str)
-                scheduled_value = "\n".join(scheduled_list)
+                # Split into multiple fields if needed
+                scheduled_value_chunks = []
+                current_chunk = ""
+                for item in scheduled_list:
+                    if len(current_chunk) + len(item) + 1 > 1024:
+                        scheduled_value_chunks.append(current_chunk)
+                        current_chunk = item
+                    else:
+                        if current_chunk:
+                            current_chunk += "\n"
+                        current_chunk += item
+                if current_chunk:
+                    scheduled_value_chunks.append(current_chunk)
+                max_fields = 25
+                field_count = 0
+                for idx, chunk in enumerate(scheduled_value_chunks):
+                    if field_count >= max_fields - 1:
+                        break
+                    part = f" (Part {idx+1})" if idx > 0 else ""
+                    total_embed.add_field(
+                        name=f"Scheduled Trainings{part}",
+                        value=chunk,
+                        inline=False
+                    )
+                    field_count += 1
+                if len(scheduled_value_chunks) > max_fields - 1:
+                    not_shown = len(scheduled_list) - sum(chunk.count('\n')+1 for chunk in scheduled_value_chunks[:max_fields-1])
+                    total_embed.add_field(
+                        name="Scheduled Trainings (More Not Shown)",
+                        value=f"{not_shown} more trainings not shown due to Discord embed limits.",
+                        inline=False
+                    )
             else:
-                scheduled_value = "None"
-            total_embed.add_field(
-                name="Scheduled Trainings",
-                value=scheduled_value,
-                inline=False
-            )
+                total_embed.add_field(
+                    name="Scheduled Trainings",
+                    value="None",
+                    inline=False
+                )
             total_embed.add_field(
                 name="All in All (Completed + Scheduled)",
                 value=f"{str(concluded_total + scheduled_total)}/8 (" +
