@@ -426,16 +426,39 @@ async def on_message(message):
         await message.channel.send(f'Fetching and counting hosts (username in task title) for {title_suffix}, this may take a moment...')
         roblox_users = ROBLOX_USERS
         task_counts = get_roblox_user_task_counts(roblox_users, year=year, month=month, month_offset=month_offset)
-        all_sorted = sorted(((u, task_counts.get(u, {}).get('host', 0)) for u in roblox_users), key=lambda x: x[1], reverse=True)
-        def line_builder(i, tup):
-            name, count = tup
-            # Only show medal emojis on the first page
-            if paginator.page == 0 and i < 3:
-                medal_emojis = [":first_place:", ":second_place:", ":third_place:"]
-                return f"{medal_emojis[i]} **{name}** ({count})"
-            return f"{i+1 + paginator.page * paginator.page_size}. {name} ({count})"
-        paginator = SimplePaginator(all_sorted, page_size=10, title=f"Most Active Supervisors {title_suffix}", line_builder=line_builder)
-        await paginator.send(message.channel)
+        # Build list of host counts in the same order as ROBLOX_USERS
+        counts = [task_counts.get(u, {}).get('host', 0) for u in roblox_users]
+
+        # Output: a single line of counts separated by comma + space
+        counts_line = ', '.join(str(c) for c in counts)
+
+        # Compute five-number summary and standard deviation
+        import statistics
+        summary_text = 'No data.'
+        if counts:
+            sorted_counts = sorted(counts)
+            minimum = sorted_counts[0]
+            maximum = sorted_counts[-1]
+            try:
+                # quantiles returns [Q1, Q2(median), Q3]
+                q1, q2, q3 = statistics.quantiles(sorted_counts, n=4)
+                median = q2
+            except Exception:
+                # Fallbacks
+                median = statistics.median(sorted_counts)
+                q1 = sorted_counts[len(sorted_counts)//4]
+                q3 = sorted_counts[(len(sorted_counts)*3)//4]
+            # population standard deviation (entire list)
+            try:
+                stddev = statistics.pstdev(sorted_counts)
+            except Exception:
+                stddev = 0.0
+            summary_text = (
+                f"Min: {minimum}, Q1: {q1}, Median: {median}, Q3: {q3}, Max: {maximum}\n"
+                f"StdDev: {stddev:.2f}"
+            )
+
+        await message.channel.send(f"Counts:\n{counts_line}\n\nFive-number summary:\n{summary_text}")
         return
 
     # >quotapast (hosts last month)
