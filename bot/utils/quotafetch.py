@@ -61,6 +61,8 @@ def get_roblox_user_task_counts(roblox_usernames, year: int = None, month: int =
     for list_id in list_ids:
         if not list_id:
             continue
+        print(f"Processing ClickUp list {list_id}")
+        per_list_count = 0
         for archived_value in ["false", "true"]:
             page = 0
             while True:
@@ -87,26 +89,38 @@ def get_roblox_user_task_counts(roblox_usernames, year: int = None, month: int =
                     if task_id in seen_task_ids:
                         continue
                     seen_task_ids.add(task_id)
-
-                    # due_date filter: ensure task due date exists and is within month window
-                    due_date = task.get('due_date')
-                    if due_date:
-                        try:
-                            due_ms = int(due_date)
-                        except Exception:
-                            continue
-                        if first_of_month_unix_ms <= due_ms <= last_of_month_unix_ms:
-                            all_tasks.append(task)
-                    else:
-                        # If there's no due date, skip (previous logic ignored tasks without due_date)
+                    # Determine a relevant date to filter the task into the target month.
+                    # Try common ClickUp timestamp fields in order of preference.
+                    date_fields = ['due_date', 'date_closed', 'date_completed', 'date_created']
+                    task_date_ms = None
+                    for df in date_fields:
+                        val = task.get(df)
+                        if val:
+                            try:
+                                task_date_ms = int(val)
+                                break
+                            except Exception:
+                                continue
+                    if task_date_ms is None:
+                        # No usable date found; skip this task
                         continue
+                    # Check month window
+                    if first_of_month_unix_ms <= task_date_ms <= last_of_month_unix_ms:
+                        all_tasks.append(task)
+                        per_list_count += 1
                 
-                # Pagination handling based on ClickUp API's 'page' and 'pages' keys
-                current_page = data.get('page', 0)
-                total_pages = data.get('pages', 1)
-                if current_page >= total_pages - 1:
+                # Pagination handling: continue if this page is 'full' (likely more pages).
+                # Prefer explicit 'limit' from API if present, otherwise use len(tasks).
+                page_size = data.get('limit') or len(tasks)
+                # Safety guard to avoid infinite loops
+                max_pages = 1000
+                if len(tasks) < page_size:
                     break
                 page += 1
+                if page >= max_pages:
+                    print(f"Reached max page limit ({max_pages}) for list {list_id}; stopping pagination")
+                    break
+        print(f"ClickUp list {list_id} yielded {per_list_count} tasks in target month window")
 
     host_counter = Counter()
     cohost_counter = Counter()
