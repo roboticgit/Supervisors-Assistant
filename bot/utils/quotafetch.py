@@ -67,7 +67,7 @@ def get_roblox_user_task_counts(roblox_usernames, year: int = None, month: int =
                 url = (
                     f"https://api.clickup.com/api/v2/list/{list_id}/task?"
                     f"archived={archived_value}&"
-                    f"statuses=concluded&"
+                    f"statuses[]=concluded&"
                     f"include_closed=true&"
                     f"due_date_gt={first_of_month_unix_ms}&"
                     f"page={page}"
@@ -78,6 +78,7 @@ def get_roblox_user_task_counts(roblox_usernames, year: int = None, month: int =
                     break
                 data = response.json()
                 tasks = data.get('tasks', [])
+                print(f"ClickUp list {list_id} (archived={archived_value}) page {page} returned {len(tasks)} tasks")
                 # If API returned no tasks on this page, break pagination loop
                 if not tasks:
                     break
