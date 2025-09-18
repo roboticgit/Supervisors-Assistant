@@ -70,15 +70,15 @@ def get_roblox_user_task_counts(roblox_usernames, year: int = None, month: int =
                     f"statuses=concluded&"
                     f"include_closed=true&"
                     f"due_date_gt={first_of_month_unix_ms}&"
-                    f"due_date_lt={last_of_month_unix_ms}&"
                     f"page={page}"
                 )
                 response = requests.get(url, headers=headers)
                 if response.status_code != 200:
-                    # You can add logging here if desired
+                    print(f"ClickUp API request failed for list {list_id} (archived={archived_value}, page={page}): {response.status_code} {response.text}")
                     break
                 data = response.json()
                 tasks = data.get('tasks', [])
+                # If API returned no tasks on this page, break pagination loop
                 if not tasks:
                     break
                 for task in tasks:
@@ -87,10 +87,18 @@ def get_roblox_user_task_counts(roblox_usernames, year: int = None, month: int =
                         continue
                     seen_task_ids.add(task_id)
 
-                    # due_date filter is redundant but kept for safety
+                    # due_date filter: ensure task due date exists and is within month window
                     due_date = task.get('due_date')
-                    if due_date and int(due_date) >= first_of_month_unix_ms:
-                        all_tasks.append(task)
+                    if due_date:
+                        try:
+                            due_ms = int(due_date)
+                        except Exception:
+                            continue
+                        if first_of_month_unix_ms <= due_ms <= last_of_month_unix_ms:
+                            all_tasks.append(task)
+                    else:
+                        # If there's no due date, skip (previous logic ignored tasks without due_date)
+                        continue
                 
                 # Pagination handling based on ClickUp API's 'page' and 'pages' keys
                 current_page = data.get('page', 0)
