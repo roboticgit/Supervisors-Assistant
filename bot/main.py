@@ -9,6 +9,7 @@ import pytz
 from datetime import datetime
 from bot.utils.db import get_db_connection
 from bot.utils.quotafetch import get_roblox_user_task_counts
+from bot.utils.roblox_users import ROBLOX_USERS
 import requests
 from bot.utils.paginator import SimplePaginator
 
@@ -375,12 +376,74 @@ async def on_message(message):
         embed.add_field(name="Description", value=f"```markdown\n{markdown_desc[:1900]}\n```", inline=False)
         await message.channel.send(embed=embed)
         return
-    # >quota
-    if content.strip() == '>quota':
+    # >quota [optional: last | YYYY-MM | YYYY MM]
+    if content.startswith('>quota'):
         if not is_owner:
             await message.channel.send('You do not have permission to use this command.')
             return
-        await message.channel.send('Fetching and counting hosts/co-hosts, this may take a moment...')
+        parts = content.split()
+        # parse optional parameter
+        year = None
+        month = None
+        month_offset = 0
+        title_suffix = 'This Month'
+        if len(parts) >= 2:
+            arg = parts[1].strip()
+            if arg.lower() == 'last':
+                month_offset = -1
+                title_suffix = 'Last Month'
+            else:
+                # Accept formats: YYYY-MM or YYYY MM
+                if '-' in arg:
+                    try:
+                        y_str, m_str = arg.split('-', 1)
+                        year = int(y_str)
+                        month = int(m_str)
+                        title_suffix = f"{year}-{month:02d}"
+                    except Exception:
+                        # fall back to current month if parsing fails
+                        month_offset = 0
+                else:
+                    # try space-separated (already split) or single token
+                    if len(parts) >= 3:
+                        try:
+                            year = int(parts[1])
+                            month = int(parts[2])
+                            title_suffix = f"{year}-{month:02d}"
+                        except Exception:
+                            month_offset = 0
+                    else:
+                        # maybe user gave YYYYMM or invalid — fallback
+                        try:
+                            # try parse YYYYMM
+                            if len(arg) == 6:
+                                year = int(arg[:4])
+                                month = int(arg[4:6])
+                                title_suffix = f"{year}-{month:02d}"
+                        except Exception:
+                            month_offset = 0
+
+        await message.channel.send(f'Fetching and counting hosts (username in task title) for {title_suffix}, this may take a moment...')
+        roblox_users = ROBLOX_USERS
+        task_counts = get_roblox_user_task_counts(roblox_users, year=year, month=month, month_offset=month_offset)
+        all_sorted = sorted(((u, task_counts.get(u, {}).get('host', 0)) for u in roblox_users), key=lambda x: x[1], reverse=True)
+        def line_builder(i, tup):
+            name, count = tup
+            # Only show medal emojis on the first page
+            if paginator.page == 0 and i < 3:
+                medal_emojis = [":first_place:", ":second_place:", ":third_place:"]
+                return f"{medal_emojis[i]} **{name}** ({count})"
+            return f"{i+1 + paginator.page * paginator.page_size}. {name} ({count})"
+        paginator = SimplePaginator(all_sorted, page_size=10, title=f"Most Active Supervisors {title_suffix}", line_builder=line_builder)
+        await paginator.send(message.channel)
+        return
+
+    # >quotapast (hosts last month)
+    if content.strip() == '>quotapast':
+        if not is_owner:
+            await message.channel.send('You do not have permission to use this command.')
+            return
+        await message.channel.send('Fetching and counting hosts (username in task title) for last month, this may take a moment...')
         roblox_users = ["12321wesee2", "Arkadexus", "AssortedBaklava", "bagg130", "Cecelia312", "colly_oz", "comfled", "DutchVossi", 
                         "EatTaco1", "emallocz", "Ethernel65", "finallybeta", "GL_TongDie", "HoustonPlayzRoblox1", "Iceboy1708", 
                         "idaaa494", "jackli0908_HKer", "Jonedaaa", "mr_fys", "newmannly", "NotOreo9", "Real_SK8R", "RB54d", 
@@ -411,8 +474,9 @@ async def on_message(message):
                         "Legocoderr", "Ferro3003", "Sillygeece", "nathdenpl", "Micro_Develops", "NowReverse", "tihouccido4", 
                         "DaBeast5766", "NoDripDynamo"
         ]
-        task_counts = get_roblox_user_task_counts(roblox_users)
-        all_sorted = sorted(((u, task_counts[u]['total']) for u in roblox_users), key=lambda x: x[1], reverse=True)
+        # Use host counts for last month
+        task_counts = get_roblox_user_task_counts(roblox_users, month_offset=-1)
+        all_sorted = sorted(((u, task_counts.get(u, {}).get('host', 0)) for u in roblox_users), key=lambda x: x[1], reverse=True)
         def line_builder(i, tup):
             name, count = tup
             # Only show medal emojis on the first page
@@ -420,7 +484,7 @@ async def on_message(message):
                 medal_emojis = [":first_place:", ":second_place:", ":third_place:"]
                 return f"{medal_emojis[i]} **{name}** ({count})"
             return f"{i+1 + paginator.page * paginator.page_size}. {name} ({count})"
-        paginator = SimplePaginator(all_sorted, page_size=10, title="Most Active Supervisors This Month", line_builder=line_builder)
+        paginator = SimplePaginator(all_sorted, page_size=10, title="Most Active Supervisors Last Month", line_builder=line_builder)
         await paginator.send(message.channel)
         return
 
